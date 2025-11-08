@@ -143,12 +143,12 @@ export default function Home() {
       area: selectedArea,
     };
     
-    setScannedData(prev =>
-      [newData, ...prev].sort(
-        (a, b) =>
-          new Date(`1970-01-01T${b.hora}`).valueOf() - new Date(`1970-01-01T${a.hora}`).valueOf()
-      )
-    );
+    setScannedData(prevData => {
+        const updatedData = [newData, ...prevData];
+        updatedData.sort((a, b) => new Date(`1970/01/01T${b.hora}`).valueOf() - new Date(`1970/01/01T${a.hora}`).valueOf());
+        return updatedData;
+    });
+
     invalidateCSV();
     return true;
   };
@@ -217,7 +217,7 @@ export default function Home() {
 
     if (isQrCodeLike || !finalCode.startsWith('4')) {
         const title = isQrCodeLike ? 'Confirmar Código' : 'Advertencia';
-        const message = isQrCodeLike ? 'Se ha detectado el siguiente código. ¿Desea agregarlo al registro?' : 'Este no es un código MEL, ¿desea agregar?';
+        const message = isQrCodeLike ? 'Se ha detectado el siguiente código. ¿Desea agregarlo al registro?': 'Este no es un código MEL, ¿desea agregar?';
         confirmed = await showConfirmationDialog(title, message, finalCode);
     }
 
@@ -680,4 +680,5 @@ export default function Home() {
         </main>
     </>
   );
-}
+  
+    
