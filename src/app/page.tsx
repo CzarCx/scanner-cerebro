@@ -61,7 +61,7 @@ export default function Home() {
 
   const initializeScanner = () => {
     if (!html5QrCodeRef.current) {
-        html5QrCodeRef.current = new Html5Qrcode('reader');
+        html5QrCodeRef.current = new Html5Qrcode('reader', { verbose: false });
     }
     Html5Qrcode.getCameras()
       .then(devices => {
@@ -146,7 +146,7 @@ export default function Home() {
     setScannedData(prev =>
       [newData, ...prev].sort(
         (a, b) =>
-          new Date('1970/01/01 ' + b.hora).valueOf() - new Date('1970/01/01 ' + a.hora).valueOf()
+          new Date(`1970-01-01T${b.hora}`).valueOf() - new Date(`1970-01-01T${a.hora}`).valueOf()
       )
     );
     invalidateCSV();
@@ -291,18 +291,23 @@ export default function Home() {
     const cameraId = (camerasRef.current[currentCameraIndexRef.current] as any).id;
     setScannerActive(true);
 
+    const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true,
+        },
+        formatsToSupport: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], // All formats
+        videoConstraints: {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            facingMode: "environment"
+        }
+    };
+
     html5QrCodeRef.current.start(
         cameraId, 
-        {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-            experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-            videoConstraints: {
-                width: { ideal: 1920 },
-                height: { ideal: 1080 },
-                facingMode: "environment"
-            }
-        },
+        config,
         onScanSuccess, 
         (e: any) => {}
     ).then(() => {
@@ -331,7 +336,7 @@ export default function Home() {
   };
 
   const stopCameraScanner = () => {
-    if (html5QrCodeRef.current && scannerActive) {
+    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
         html5QrCodeRef.current.stop().then(() => {
             setScannerActive(false);
             videoTrackRef.current = null;
