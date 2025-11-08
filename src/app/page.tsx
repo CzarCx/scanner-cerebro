@@ -1,5 +1,5 @@
 'use client';
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useRef, useState, useCallback} from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
 import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
@@ -41,10 +41,14 @@ export default function Home() {
     code: '',
   });
 
+  // Refs para elementos del DOM y la instancia del escáner
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const videoTrackRef = useRef<MediaStreamTrack | null>(null);
   const physicalScannerInputRef = useRef<HTMLInputElement | null>(null);
   const zoomSliderRef = useRef<HTMLInputElement | null>(null);
+  const readerRef = useRef<HTMLDivElement>(null);
+
+  // Refs para valores que no necesitan re-renderizar el componente
   const camerasRef = useRef<any[]>([]);
   const currentCameraIndexRef = useRef(0);
   const lastScanTimeRef = useRef(Date.now());
@@ -57,65 +61,15 @@ export default function Home() {
     'https://script.google.com/macros/s/AKfycbwxN5n-iE0pi3JlOkImBgWD3-qptWsJxdyMJjXbRySgGvi7jqIsU9Puo7p2uvu5BioIbQ/exec';
   const MIN_SCAN_INTERVAL = 500;
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-        const html5QrCode = new Html5Qrcode('reader', false);
-        html5QrCodeRef.current = html5QrCode;
-
-        Html5Qrcode.getCameras()
-        .then(devices => {
-            if (devices && devices.length) {
-            camerasRef.current = devices;
-            const rearCameraIndex = camerasRef.current.findIndex(
-                (camera: any) =>
-                camera.label.toLowerCase().includes('back') ||
-                camera.label.toLowerCase().includes('trasera')
-            );
-            if (rearCameraIndex !== -1) {
-                currentCameraIndexRef.current = rearCameraIndex;
-            }
-            }
-        })
-        .catch(err => console.error('No se pudieron obtener las cámaras:', err));
-    }
-  }, []);
-
-  useEffect(() => {
-    const input = physicalScannerInputRef.current;
-    const downListener = (e: Event) => handlePhysicalScannerInput(e as KeyboardEvent);
-    
-    if (selectedScannerMode === 'fisico' && scannerActive && input) {
-      input.addEventListener('keydown', downListener);
-      input.focus();
-    }
-    
-    return () => {
-      if (input) {
-        input.removeEventListener('keydown', downListener);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scannerActive, selectedScannerMode]);
-
-
   const showAppMessage = (text: string, type: 'success' | 'duplicate' | 'info') => {
     setMessage({text, type});
-  };
-
-  const clearSessionData = () => {
-    scannedCodesRef.current.clear();
-    setScannedData([]);
-    setMelCodesCount(0);
-    setOtherCodesCount(0);
-    lastSuccessfullyScannedCodeRef.current = null;
-    setIngresarDatosEnabled(false);
   };
 
   const invalidateCSV = () => {
     setIngresarDatosEnabled(false);
   };
 
-  const addCodeAndUpdateCounters = (codeToAdd: string) => {
+  const addCodeAndUpdateCounters = useCallback((codeToAdd: string) => {
     const finalCode = codeToAdd.trim();
     if (finalCode.startsWith('4') && finalCode.length !== 11) {
       alert(
@@ -166,9 +120,19 @@ export default function Home() {
 
     invalidateCSV();
     return true;
+  }, [encargado, selectedArea]);
+
+  const showConfirmationDialog = (title: string, message: string, code: string): Promise<boolean> => {
+      return new Promise((resolve) => {
+        const qrCode = html5QrCodeRef.current;
+          if (scannerActive && selectedScannerMode === 'camara' && qrCode && qrCode.getState() === Html5QrcodeScannerState.SCANNING) {
+              qrCode.pause(true);
+          }
+          setConfirmation({ isOpen: true, title, message, code, resolve });
+      });
   };
 
-  const onScanSuccess = async (decodedText: string, decodedResult: any) => {
+  const onScanSuccess = useCallback(async (decodedText: string, decodedResult: any) => {
     setLastScanned(decodedText);
     console.log(`Código escaneado (raw): ${decodedText}`);
 
@@ -210,8 +174,125 @@ export default function Home() {
     } else {
       showAppMessage('Escaneo cancelado.', 'info');
     }
-  };
+  }, [scannerActive, addCodeAndUpdateCounters]);
 
+
+  // Efecto para inicializar y limpiar el escáner
+  useEffect(() => {
+    if (!readerRef.current) {
+      return;
+    }
+    
+    if (!html5QrCodeRef.current) {
+      html5QrCodeRef.current = new Html5Qrcode(readerRef.current.id, false);
+    }
+
+    const qrCode = html5QrCodeRef.current;
+    
+    if (scannerActive && selectedScannerMode === 'camara') {
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        videoConstraints: {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            facingMode: "environment"
+        }
+      };
+
+      const startCamera = () => {
+         Html5Qrcode.getCameras().then(devices => {
+            if (devices && devices.length) {
+              camerasRef.current = devices;
+              const rearCameraIndex = devices.findIndex(
+                  (camera: any) =>
+                  camera.label.toLowerCase().includes('back') ||
+                  camera.label.toLowerCase().includes('trasera')
+              );
+              if (rearCameraIndex !== -1) {
+                  currentCameraIndexRef.current = rearCameraIndex;
+              }
+              if (devices.length > 1) setShowChangeCamera(true);
+
+              const cameraId = devices[currentCameraIndexRef.current].id;
+              
+              qrCode.start(cameraId, config, onScanSuccess, (e: any) => {}).then(() => {
+                const videoElement = document.querySelector(`#${readerRef.current!.id} video`);
+                if (videoElement) {
+                    const stream = (videoElement as HTMLVideoElement).srcObject as MediaStream;
+                    const track = stream.getVideoTracks()[0];
+                    videoTrackRef.current = track;
+                    
+                    const capabilities = track.getCapabilities();
+                    if(capabilities.torch || capabilities.zoom) setShowAdvancedControls(true);
+                    if(capabilities.torch) setShowFlashControl(true);
+                    if(capabilities.zoom && capabilities.zoom.max > capabilities.zoom.min) {
+                        setShowZoomControl(true);
+                        if(zoomSliderRef.current) {
+                            zoomSliderRef.current.min = capabilities.zoom.min!.toString();
+                            zoomSliderRef.current.max = capabilities.zoom.max!.toString();
+                            zoomSliderRef.current.step = capabilities.zoom.step!.toString();
+                            zoomSliderRef.current.value = track.getSettings().zoom!.toString();
+                        }
+                    }
+                }
+              }).catch(err => {
+                  console.error("Error al iniciar camara", err);
+                  showAppMessage('Error al iniciar la cámara. Revisa los permisos.', 'duplicate');
+                  setScannerActive(false);
+              });
+            }
+         }).catch(err => {
+            console.error('No se pudieron obtener las cámaras:', err);
+            showAppMessage('No se encontraron cámaras.', 'duplicate');
+            setScannerActive(false);
+         });
+      };
+      
+      startCamera();
+
+    } else if (!scannerActive && qrCode.isScanning) {
+        qrCode.stop().then(() => {
+          console.log("Scanner stopped");
+        }).catch(err => console.error("Failed to stop scanner", err));
+    }
+    
+    // Función de limpieza
+    return () => {
+      if (qrCode && qrCode.isScanning) {
+        qrCode.stop().catch(err => console.error("Failed to stop scanner on cleanup", err));
+      }
+    };
+  }, [scannerActive, selectedScannerMode, onScanSuccess]);
+
+
+  useEffect(() => {
+    const input = physicalScannerInputRef.current;
+    const downListener = (e: Event) => handlePhysicalScannerInput(e as KeyboardEvent);
+    
+    if (selectedScannerMode === 'fisico' && scannerActive && input) {
+      input.addEventListener('keydown', downListener);
+      input.focus();
+    }
+    
+    return () => {
+      if (input) {
+        input.removeEventListener('keydown', downListener);
+      }
+    };
+  }, [scannerActive, selectedScannerMode]);
+
+
+  const clearSessionData = () => {
+    scannedCodesRef.current.clear();
+    setScannedData([]);
+    setMelCodesCount(0);
+    setOtherCodesCount(0);
+    lastSuccessfullyScannedCodeRef.current = null;
+    setIngresarDatosEnabled(false);
+  };
+  
   const processPhysicalScan = async (code: string) => {
     if(!scannerActive || (Date.now() - lastScanTimeRef.current) < MIN_SCAN_INTERVAL) return;
     lastScanTimeRef.current = Date.now();
@@ -270,116 +351,54 @@ export default function Home() {
   const startScanner = () => {
     if (!encargado.trim()) return showAppMessage('Por favor, ingresa el nombre del encargado.', 'duplicate');
     if (!selectedArea) return showAppMessage('Por favor, selecciona un área.', 'duplicate');
-    
     setScannerActive(true);
-
     if(selectedScannerMode === 'camara') {
-        startCameraScanner();
+      showAppMessage('Cámara activada. Apunta al código.', 'info');
     } else {
-        startPhysicalScanner();
+      physicalScannerInputRef.current?.focus();
+      showAppMessage('Escáner físico activo. Escanea códigos.', 'info');
     }
   };
 
   const stopScanner = () => {
     if(scannerActive) {
-        if(selectedScannerMode === 'camara') {
-            stopCameraScanner();
-        } else {
-            stopPhysicalScanner();
-        }
-        setScannerActive(false);
+      setScannerActive(false);
+      showAppMessage('Escaneo detenido.', 'info');
+      // Limpiar estados de controles de cámara
+      setShowAdvancedControls(false);
+      setShowChangeCamera(false);
+      setShowFlashControl(false);
+      setShowZoomControl(false);
+      videoTrackRef.current = null;
+      if (selectedScannerMode === 'fisico') {
+        bufferRef.current = '';
+        if(scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+        physicalScannerInputRef.current?.blur();
+      }
     }
-  };
-
-  const startCameraScanner = () => {
-    const qrCode = html5QrCodeRef.current;
-    if (!qrCode) return;
-    if (!camerasRef.current.length) return showAppMessage('No se encontraron cámaras.', 'duplicate');
-    
-    const cameraId = (camerasRef.current[currentCameraIndexRef.current] as any).id;
-    showAppMessage('Cámara activada. Apunta al código.', 'info');
-
-    const config = {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-        experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true,
-        },
-        formatsToSupport: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-        videoConstraints: {
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            facingMode: "environment"
-        }
-    };
-
-    qrCode.start(
-        cameraId, 
-        config,
-        onScanSuccess, 
-        (e: any) => {}
-    ).then(() => {
-        if (camerasRef.current.length > 1) setShowChangeCamera(true);
-        const videoElement = document.querySelector('#reader video');
-        if (videoElement) {
-            const stream = (videoElement as HTMLVideoElement).srcObject as MediaStream;
-            const track = stream.getVideoTracks()[0];
-            videoTrackRef.current = track;
-            
-            const capabilities = track.getCapabilities();
-            if(capabilities.torch || capabilities.zoom) setShowAdvancedControls(true);
-            if(capabilities.torch) setShowFlashControl(true);
-            if(capabilities.zoom && capabilities.zoom.max > capabilities.zoom.min) {
-                setShowZoomControl(true);
-                if(zoomSliderRef.current) {
-                    zoomSliderRef.current.min = capabilities.zoom.min!.toString();
-                    zoomSliderRef.current.max = capabilities.zoom.max!.toString();
-                    zoomSliderRef.current.step = capabilities.zoom.step!.toString();
-                    zoomSliderRef.current.value = track.getSettings().zoom!.toString();
-                }
-            }
-        }
-    }).catch(err => {
-        setScannerActive(false);
-        showAppMessage('Error al iniciar la cámara. Revisa los permisos.', 'duplicate');
-        console.error(err);
-    });
-  };
-
-  const stopCameraScanner = () => {
-    const qrCode = html5QrCodeRef.current;
-    if (qrCode && qrCode.isScanning) {
-        qrCode.stop().then(() => {
-            videoTrackRef.current = null;
-            setShowAdvancedControls(false);
-            setShowChangeCamera(false);
-            setShowFlashControl(false);
-            setShowZoomControl(false);
-            showAppMessage('Escaneo detenido.', 'info');
-        }).catch(err => console.error("Error al detener.", err));
-    }
-  };
-  
-  const startPhysicalScanner = () => {
-      physicalScannerInputRef.current?.focus();
-      showAppMessage('Escáner físico activo. Escanea códigos.', 'info');
-  };
-
-  const stopPhysicalScanner = () => {
-      bufferRef.current = '';
-      if(scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
-      physicalScannerInputRef.current?.blur();
-      showAppMessage('Escáner físico detenido.', 'info');
   };
 
   const changeCamera = () => {
     const qrCode = html5QrCodeRef.current;
       if (scannerActive && camerasRef.current.length > 1 && qrCode) {
-          stopCameraScanner();
-          setTimeout(() => {
+          qrCode.stop().then(() => {
             currentCameraIndexRef.current = (currentCameraIndexRef.current + 1) % camerasRef.current.length;
-            startCameraScanner();
-          }, 100);
+            const newCameraId = camerasRef.current[currentCameraIndexRef.current].id;
+             const config = {
+                fps: 10,
+                qrbox: { width: 250, height: 250 },
+                experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+                videoConstraints: {
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    facingMode: "environment"
+                }
+            };
+            qrCode.start(newCameraId, config, onScanSuccess, (e: any) => {}).catch(err => {
+              console.error("Error changing camera", err);
+              showAppMessage('Error al cambiar de cámara.', 'duplicate');
+            });
+          });
       }
   };
 
@@ -402,16 +421,6 @@ export default function Home() {
               console.error("Error al aplicar zoom:", error);
           }
       }
-  };
-
-  const showConfirmationDialog = (title: string, message: string, code: string): Promise<boolean> => {
-      return new Promise((resolve) => {
-        const qrCode = html5QrCodeRef.current;
-          if (scannerActive && selectedScannerMode === 'camara' && qrCode && qrCode.getState() === Html5QrcodeScannerState.SCANNING) {
-              qrCode.pause(true);
-          }
-          setConfirmation({ isOpen: true, title, message, code, resolve });
-      });
   };
 
   const handleConfirmation = (decision: boolean) => {
@@ -587,7 +596,7 @@ export default function Home() {
 
                 <div className="bg-starbucks-cream p-4 rounded-lg">
                     <div className="scanner-container">
-                        <div id="reader" style={{ display: selectedScannerMode === 'camara' ? 'block' : 'none' }}></div>
+                        <div id="reader" ref={readerRef} style={{ display: selectedScannerMode === 'camara' ? 'block' : 'none' }}></div>
                         <div id="laser-line" style={{ display: scannerActive && selectedScannerMode === 'camara' ? 'block' : 'none' }}></div>
                         <input type="text" id="physical-scanner-input" ref={physicalScannerInputRef} className="hidden-input" autoComplete="off" />
                     </div>
