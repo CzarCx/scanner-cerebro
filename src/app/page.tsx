@@ -57,10 +57,6 @@ export default function Home() {
     code: '',
     resolve: (value: boolean) => {},
   });
-  const [successModal, setSuccessModal] = useState({
-    isOpen: false,
-    code: '',
-  });
 
   // Refs para elementos del DOM y la instancia del escáner
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
@@ -122,7 +118,7 @@ export default function Home() {
         setOtherCodesCount(prev => prev + 1);
     }
     
-    setSuccessModal({ isOpen: true, code: finalCode });
+    showAppMessage(`Éxito: ${finalCode}`, 'success');
 
     if ('vibrate' in navigator) navigator.vibrate(200);
 
@@ -487,11 +483,6 @@ export default function Home() {
       }
   };
 
-  const handleSuccessModalClose = () => {
-    setSuccessModal({ isOpen: false, code: '' });
-    showAppMessage('Esperando para escanear...', 'info');
-  };
-
   const handleManualAdd = async () => {
       const manualCodeInput = document.getElementById('manual-code-input') as HTMLInputElement;
       if (!encargado.trim()) return showAppMessage('Por favor, ingresa el nombre del encargado.', 'duplicate');
@@ -830,27 +821,9 @@ export default function Home() {
                     </div>
                 </div>
             </div>}
-            
-            {successModal.isOpen && (
-              <div className="p-4" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.75)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100 }}>
-                <div className="bg-starbucks-white rounded-lg shadow-xl p-6 w-full max-w-md text-center space-y-4 text-starbucks-dark">
-                  <h3 className="text-lg font-bold">¡Éxito!</h3>
-                  <p>El código fue escaneado y guardado correctamente:</p>
-                  <div className="bg-starbucks-cream p-3 rounded-md font-mono text-sm break-words max-h-40 overflow-y-auto font-bold">{successModal.code}</div>
-                  <button onClick={handleSuccessModalClose} className="mt-4 px-6 py-2 bg-starbucks-green hover:bg-starbucks-accent text-white font-semibold rounded-lg shadow-md">
-                    Aceptar
-                  </button>
-                </div>
-              </div>
-            )}
-
         </main>
     </>
   );
 }
-
-    
-
-    
 
     
