@@ -1,3 +1,4 @@
+
 'use client';
 import {useEffect, useRef, useState, useCallback} from 'react';
 import Head from 'next/head';
@@ -315,6 +316,7 @@ export default function Home() {
              });
            }
         }).catch(err => {
+           if (String(err).includes('transition')) return;
            console.error('No se pudieron obtener las cámaras:', err);
            showAppMessage('No se encontraron cámaras.', 'duplicate');
            setScannerActive(false);
@@ -857,5 +859,7 @@ export default function Home() {
     </>
   );
 }
+
+    
 
     
