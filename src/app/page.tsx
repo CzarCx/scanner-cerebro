@@ -143,7 +143,7 @@ export default function Home() {
     setScannedData(prev =>
       [...prev, newData].sort(
         (a, b) =>
-          new Date('1970/01/01 ' + b.hora) - new Date('1970/01/01 ' + a.hora)
+          new Date('1970/01/01 ' + b.hora).valueOf() - new Date('1970/01/01 ' + a.hora).valueOf()
       )
     );
     invalidateCSV();
@@ -302,7 +302,7 @@ export default function Home() {
         if (camerasRef.current.length > 1) setShowChangeCamera(true);
         const videoElement = document.querySelector('#reader video');
         if (videoElement) {
-            videoTrackRef.current = videoElement.srcObject.getVideoTracks()[0];
+            videoTrackRef.current = (videoElement as HTMLVideoElement).srcObject.getVideoTracks()[0];
             const capabilities = videoTrackRef.current.getCapabilities();
             if(capabilities.torch || capabilities.zoom) setShowAdvancedControls(true);
             if(capabilities.torch) setShowFlashControl(true);
