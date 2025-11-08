@@ -14,6 +14,7 @@ type ScannedItem = {
 
 export default function Home() {
   const [message, setMessage] = useState({text: 'Esperando para escanear...', type: 'info' as 'info' | 'success' | 'duplicate'});
+  const [lastScanned, setLastScanned] = useState<string | null>(null);
   const [encargado, setEncargado] = useState('');
   const [scannedData, setScannedData] = useState<ScannedItem[]>([]);
   const [melCodesCount, setMelCodesCount] = useState(0);
@@ -168,6 +169,9 @@ export default function Home() {
   };
 
   const onScanSuccess = async (decodedText: string, decodedResult: any) => {
+    console.log(`Código escaneado (raw): ${decodedText}`);
+    setLastScanned(decodedText);
+
     if (!scannerActive || Date.now() - lastScanTimeRef.current < MIN_SCAN_INTERVAL) return;
     lastScanTimeRef.current = Date.now();
 
@@ -587,6 +591,11 @@ export default function Home() {
                         <div id="laser-line" style={{ display: scannerActive && selectedScannerMode === 'camara' ? 'block' : 'none' }}></div>
                         <input type="text" id="physical-scanner-input" ref={physicalScannerInputRef} className="hidden-input" autoComplete="off" />
                     </div>
+                    {lastScanned && (
+                        <p className="mt-2 text-center text-sm bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded relative">
+                            <strong>Último escaneo detectado:</strong> {lastScanned}
+                        </p>
+                    )}
                     <div id="scanner-controls" className="mt-4 flex flex-wrap gap-2 justify-center">
                         <button onClick={startScanner} disabled={scannerActive} className={`px-4 py-2 text-white font-semibold rounded-lg shadow-md transition-colors duration-200 ${scannerActive ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'}`}>Iniciar Escaneo</button>
                         <button onClick={stopScanner} disabled={!scannerActive} className={`px-4 py-2 text-white font-semibold rounded-lg shadow-md transition-colors duration-200 ${!scannerActive ? 'bg-gray-400' : 'bg-red-600 hover:bg-red-700'}`}>Detener Escaneo</button>
@@ -713,4 +722,3 @@ export default function Home() {
     </>
   );
 }
-
