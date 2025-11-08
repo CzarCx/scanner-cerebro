@@ -245,21 +245,19 @@ export default function Home() {
       return;
     }
   
-    let qrCode = html5QrCodeRef.current;
+    if (!html5QrCodeRef.current) {
+      html5QrCodeRef.current = new Html5Qrcode(readerRef.current.id, false);
+    }
+    const qrCode = html5QrCodeRef.current;
   
     const cleanup = () => {
       if (qrCode && qrCode.getState() === Html5QrcodeScannerState.SCANNING) {
         return qrCode.stop().catch(err => {
-          console.error("Failed to stop scanner on cleanup", err);
+          console.error("Fallo al detener el escáner en la limpieza", err);
         });
       }
       return Promise.resolve();
     };
-  
-    if (!qrCode) {
-      qrCode = new Html5Qrcode(readerRef.current.id, false);
-      html5QrCodeRef.current = qrCode;
-    }
   
     if (scannerActive && selectedScannerMode === 'camara') {
       if (qrCode.getState() !== Html5QrcodeScannerState.SCANNING) {
@@ -274,55 +272,53 @@ export default function Home() {
           }
         };
   
-        const startCamera = () => {
-          Html5Qrcode.getCameras().then(devices => {
-             if (devices && devices.length) {
-               camerasRef.current = devices;
-               const rearCameraIndex = devices.findIndex(
-                   (camera: any) =>
-                   camera.label.toLowerCase().includes('back') ||
-                   camera.label.toLowerCase().includes('trasera')
-               );
-               if (rearCameraIndex !== -1) {
-                   currentCameraIndexRef.current = rearCameraIndex;
-               }
-               if (devices.length > 1) setShowChangeCamera(true);
- 
-               const cameraId = devices[currentCameraIndexRef.current].id;
-               
-               qrCode.start(cameraId, config, onScanSuccess, (e: any) => {}).then(() => {
-                 const videoElement = document.querySelector(`#${readerRef.current!.id} video`);
-                 if (videoElement) {
-                     const stream = (videoElement as HTMLVideoElement).srcObject as MediaStream;
-                     const track = stream.getVideoTracks()[0];
-                     videoTrackRef.current = track;
-                     
-                     const capabilities = track.getCapabilities();
-                     if(capabilities.torch || capabilities.zoom) setShowAdvancedControls(true);
-                     if(capabilities.torch) setShowFlashControl(true);
-                     if(capabilities.zoom && capabilities.zoom.max > capabilities.zoom.min) {
-                         setShowZoomControl(true);
-                         if(zoomSliderRef.current) {
-                             zoomSliderRef.current.min = capabilities.zoom.min!.toString();
-                             zoomSliderRef.current.max = capabilities.zoom.max!.toString();
-                             zoomSliderRef.current.step = capabilities.zoom.step!.toString();
-                             zoomSliderRef.current.value = track.getSettings().zoom!.toString();
-                         }
-                     }
-                 }
-               }).catch(err => {
-                   console.error("Error al iniciar camara", err);
-                   showAppMessage('Error al iniciar la cámara. Revisa los permisos.', 'duplicate');
-                   setScannerActive(false);
-               });
+        Html5Qrcode.getCameras().then(devices => {
+           if (devices && devices.length) {
+             camerasRef.current = devices;
+             const rearCameraIndex = devices.findIndex(
+                 (camera: any) =>
+                 camera.label.toLowerCase().includes('back') ||
+                 camera.label.toLowerCase().includes('trasera')
+             );
+             if (rearCameraIndex !== -1) {
+                 currentCameraIndexRef.current = rearCameraIndex;
              }
-          }).catch(err => {
-             console.error('No se pudieron obtener las cámaras:', err);
-             showAppMessage('No se encontraron cámaras.', 'duplicate');
-             setScannerActive(false);
-          });
-       };
-       startCamera();
+             if (devices.length > 1) setShowChangeCamera(true);
+
+             const cameraId = devices[currentCameraIndexRef.current].id;
+             
+             qrCode.start(cameraId, config, onScanSuccess, (e: any) => {}).then(() => {
+               const videoElement = document.querySelector(`#${readerRef.current!.id} video`);
+               if (videoElement) {
+                   const stream = (videoElement as HTMLVideoElement).srcObject as MediaStream;
+                   const track = stream.getVideoTracks()[0];
+                   videoTrackRef.current = track;
+                   
+                   const capabilities = track.getCapabilities();
+                   if(capabilities.torch || capabilities.zoom) setShowAdvancedControls(true);
+                   if(capabilities.torch) setShowFlashControl(true);
+                   if(capabilities.zoom && capabilities.zoom.max > capabilities.zoom.min) {
+                       setShowZoomControl(true);
+                       if(zoomSliderRef.current) {
+                           zoomSliderRef.current.min = capabilities.zoom.min!.toString();
+                           zoomSliderRef.current.max = capabilities.zoom.max!.toString();
+                           zoomSliderRef.current.step = capabilities.zoom.step!.toString();
+                           zoomSliderRef.current.value = track.getSettings().zoom!.toString();
+                       }
+                   }
+               }
+             }).catch(err => {
+                 console.error("Error al iniciar camara", err);
+                 if (String(err).includes('transition')) return;
+                 showAppMessage('Error al iniciar la cámara. Revisa los permisos.', 'duplicate');
+                 setScannerActive(false);
+             });
+           }
+        }).catch(err => {
+           console.error('No se pudieron obtener las cámaras:', err);
+           showAppMessage('No se encontraron cámaras.', 'duplicate');
+           setScannerActive(false);
+        });
       }
     } else if (!scannerActive) {
       cleanup();
