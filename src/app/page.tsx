@@ -13,6 +13,7 @@ type ScannedItem = {
 };
 
 export default function Home() {
+  const [isMounted, setIsMounted] = useState(false);
   const [message, setMessage] = useState({text: 'Esperando para escanear...', type: 'info' as 'info' | 'success' | 'duplicate'});
   const [lastScanned, setLastScanned] = useState<string | null>(null);
   const [encargado, setEncargado] = useState('');
@@ -186,9 +187,13 @@ export default function Home() {
   }, [scannerActive, addCodeAndUpdateCounters]);
 
 
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   // Efecto para inicializar y limpiar el escáner
   useEffect(() => {
-    if (!readerRef.current) {
+    if (!isMounted || !readerRef.current) {
       return;
     }
     
@@ -261,7 +266,7 @@ export default function Home() {
       
       startCamera();
 
-    } else if (!scannerActive && qrCode.getState() === Html5QrcodeScannerState.SCANNING) {
+    } else if (!scannerActive && qrCode && qrCode.getState() === Html5QrcodeScannerState.SCANNING) {
         qrCode.stop().then(() => {
           console.log("Scanner stopped");
         }).catch(err => console.error("Failed to stop scanner", err));
@@ -273,7 +278,7 @@ export default function Home() {
         qrCode.stop().catch(err => console.error("Failed to stop scanner on cleanup", err));
       }
     };
-  }, [scannerActive, selectedScannerMode, onScanSuccess]);
+  }, [scannerActive, selectedScannerMode, onScanSuccess, isMounted]);
 
 
   useEffect(() => {
@@ -354,7 +359,7 @@ export default function Home() {
     if(selectedScannerMode === 'camara') {
       showAppMessage('Cámara activada. Apunta al código.', 'info');
     } else {
-      physicalScannerInput.current?.focus();
+      physicalScannerInputRef.current?.focus();
       showAppMessage('Escáner físico activo. Escanea códigos.', 'info');
     }
   };
