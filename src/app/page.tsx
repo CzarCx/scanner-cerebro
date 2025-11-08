@@ -68,6 +68,15 @@ export default function Home() {
   const invalidateCSV = () => {
     setIngresarDatosEnabled(false);
   };
+  
+  const clearSessionData = () => {
+    scannedCodesRef.current.clear();
+    setScannedData([]);
+    setMelCodesCount(0);
+    setOtherCodesCount(0);
+    lastSuccessfullyScannedCodeRef.current = null;
+    setIngresarDatosEnabled(false);
+  };
 
   const addCodeAndUpdateCounters = useCallback((codeToAdd: string) => {
     const finalCode = codeToAdd.trim();
@@ -252,7 +261,7 @@ export default function Home() {
       
       startCamera();
 
-    } else if (!scannerActive && qrCode.isScanning) {
+    } else if (!scannerActive && qrCode.getState() === Html5QrcodeScannerState.SCANNING) {
         qrCode.stop().then(() => {
           console.log("Scanner stopped");
         }).catch(err => console.error("Failed to stop scanner", err));
@@ -260,7 +269,7 @@ export default function Home() {
     
     // Función de limpieza
     return () => {
-      if (qrCode && qrCode.isScanning) {
+      if (qrCode && qrCode.getState() === Html5QrcodeScannerState.SCANNING) {
         qrCode.stop().catch(err => console.error("Failed to stop scanner on cleanup", err));
       }
     };
@@ -282,16 +291,6 @@ export default function Home() {
       }
     };
   }, [scannerActive, selectedScannerMode]);
-
-
-  const clearSessionData = () => {
-    scannedCodesRef.current.clear();
-    setScannedData([]);
-    setMelCodesCount(0);
-    setOtherCodesCount(0);
-    lastSuccessfullyScannedCodeRef.current = null;
-    setIngresarDatosEnabled(false);
-  };
   
   const processPhysicalScan = async (code: string) => {
     if(!scannerActive || (Date.now() - lastScanTimeRef.current) < MIN_SCAN_INTERVAL) return;
@@ -355,7 +354,7 @@ export default function Home() {
     if(selectedScannerMode === 'camara') {
       showAppMessage('Cámara activada. Apunta al código.', 'info');
     } else {
-      physicalScannerInputRef.current?.focus();
+      physicalScannerInput.current?.focus();
       showAppMessage('Escáner físico activo. Escanea códigos.', 'info');
     }
   };
