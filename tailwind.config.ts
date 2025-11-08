@@ -65,6 +65,12 @@ export default {
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
         },
+        'starbucks-green': '#006241',
+        'starbucks-dark': '#1e3932',
+        'starbucks-light-gray': '#f1f1f1',
+        'starbucks-accent': '#00704A',
+        'starbucks-cream': '#f3f1e7',
+        'starbucks-white': '#ffffff'
       },
       borderRadius: {
         lg: 'var(--radius)',
