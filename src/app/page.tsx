@@ -5,10 +5,18 @@ import Image from 'next/image';
 import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 import { QrCodeResultFormat } from 'html5-qrcode/core';
 
+type ScannedItem = {
+  code: string;
+  fecha: string;
+  hora: string;
+  encargado: string;
+  area: string;
+};
+
 export default function Home() {
   const [message, setMessage] = useState({text: 'Esperando para escanear...', type: 'info'});
   const [encargado, setEncargado] = useState('');
-  const [scannedData, setScannedData] = useState([]);
+  const [scannedData, setScannedData] = useState<ScannedItem[]>([]);
   const [melCodesCount, setMelCodesCount] = useState(0);
   const [otherCodesCount, setOtherCodesCount] = useState(0);
   const [selectedArea, setSelectedArea] = useState('');
@@ -33,11 +41,11 @@ export default function Home() {
   const videoTrackRef = useRef<MediaStreamTrack | null>(null);
   const physicalScannerInputRef = useRef<HTMLInputElement | null>(null);
   const zoomSliderRef = useRef<HTMLInputElement | null>(null);
-  const camerasRef = useRef([]);
+  const camerasRef = useRef<any[]>([]);
   const currentCameraIndexRef = useRef(0);
   const lastScanTimeRef = useRef(0);
   const lastSuccessfullyScannedCodeRef = useRef<string | null>(null);
-  const scannedCodesRef = useRef(new Set());
+  const scannedCodesRef = useRef(new Set<string>());
   const bufferRef = useRef('');
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -72,7 +80,7 @@ export default function Home() {
       .catch(err => console.error('No se pudieron obtener las cámaras:', err));
   };
 
-  const showAppMessage = (text, type) => {
+  const showAppMessage = (text: string, type: 'success' | 'duplicate' | 'info') => {
     setMessage({text, type});
   };
 
@@ -127,15 +135,16 @@ export default function Home() {
       hour12: false,
     });
 
-    const newData = {
+    const newData: ScannedItem = {
       code: finalCode,
       fecha: fechaEscaneo,
       hora: horaEscaneo,
       encargado: encargado.trim(),
       area: selectedArea,
     };
+    
     setScannedData(prev =>
-      [...prev, newData].sort(
+      [newData, ...prev].sort(
         (a, b) =>
           new Date('1970/01/01 ' + b.hora).valueOf() - new Date('1970/01/01 ' + a.hora).valueOf()
       )
@@ -246,9 +255,10 @@ export default function Home() {
   useEffect(() => {
     const input = physicalScannerInputRef.current;
     if (input) {
-      input.addEventListener('keydown', handlePhysicalScannerInput);
+      const downListener = (e: Event) => handlePhysicalScannerInput(e as KeyboardEvent);
+      input.addEventListener('keydown', downListener);
       return () => {
-        input.removeEventListener('keydown', handlePhysicalScannerInput);
+        input.removeEventListener('keydown', downListener);
       };
     }
   }, [scannerActive, selectedScannerMode]);
@@ -627,7 +637,7 @@ export default function Home() {
                                 </tr>
                             </thead>
                             <tbody id="scanned-list" className="bg-starbucks-white divide-y divide-gray-200">
-                                {scannedData.map((data: any) => (
+                                {scannedData.map((data: ScannedItem) => (
                                     <tr key={data.code}>
                                         <td className="px-6 py-4 whitespace-nowrap font-mono">{data.code}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{data.fecha}</td>
@@ -666,5 +676,3 @@ export default function Home() {
     </>
   );
 }
-
-    
