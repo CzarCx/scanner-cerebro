@@ -12,12 +12,28 @@ type ScannedItem = {
   area: string;
 };
 
+type PersonalScanItem = {
+  code: string;
+  sku: string; // SKU will be empty for now
+  personal: string;
+  encargado: string;
+};
+
+// Helper function to check if a string is likely a name
+const isLikelyName = (text: string): boolean => {
+  const trimmed = text.trim();
+  // Not a number, has spaces, and more than 5 chars.
+  return isNaN(Number(trimmed)) && trimmed.includes(' ') && trimmed.length > 5;
+};
+
+
 export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
   const [message, setMessage] = useState({text: 'Esperando para escanear...', type: 'info' as 'info' | 'success' | 'duplicate'});
   const [lastScanned, setLastScanned] = useState<string | null>(null);
   const [encargado, setEncargado] = useState('');
   const [scannedData, setScannedData] = useState<ScannedItem[]>([]);
+  const [personalScans, setPersonalScans] = useState<PersonalScanItem[]>([]);
   const [melCodesCount, setMelCodesCount] = useState(0);
   const [otherCodesCount, setOtherCodesCount] = useState(0);
   const [selectedArea, setSelectedArea] = useState('');
@@ -73,6 +89,7 @@ export default function Home() {
   const clearSessionData = () => {
     scannedCodesRef.current.clear();
     setScannedData([]);
+    setPersonalScans([]);
     setMelCodesCount(0);
     setOtherCodesCount(0);
     lastSuccessfullyScannedCodeRef.current = null;
@@ -132,6 +149,27 @@ export default function Home() {
     return true;
   }, [encargado, selectedArea]);
 
+  const associateNameToScans = (name: string) => {
+    const newPersonalScans: PersonalScanItem[] = [];
+
+    scannedData.forEach(item => {
+      newPersonalScans.push({
+        code: item.code,
+        sku: '', // As per requirement, SKU is empty for now
+        personal: name,
+        encargado: item.encargado,
+      });
+    });
+
+    if (newPersonalScans.length > 0) {
+      setPersonalScans(prev => [...prev, ...newPersonalScans].sort((a, b) => a.code.localeCompare(b.code)));
+      setScannedData([]); // Clear the unique scans table after association
+      showAppMessage(`Se asociaron ${newPersonalScans.length} códigos a ${name}.`, 'success');
+    } else {
+      showAppMessage(`${name} escaneado, pero no había códigos pendientes.`, 'info');
+    }
+  };
+
   const showConfirmationDialog = (title: string, message: string, code: string): Promise<boolean> => {
       return new Promise((resolve) => {
         const qrCode = html5QrCodeRef.current;
@@ -154,6 +192,14 @@ export default function Home() {
       const parsedJson = JSON.parse(decodedText);
       if (parsedJson && parsedJson.id) finalCode = parsedJson.id;
     } catch (e) {}
+
+    // Check if it's a name
+    if (isLikelyName(finalCode)) {
+      if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
+      associateNameToScans(finalCode);
+      lastSuccessfullyScannedCodeRef.current = finalCode; // Prevent re-scanning the same name
+      return;
+    }
 
     const isOnlyDigits = /^\d+$/.test(finalCode);
     if (finalCode.length > 30 && isOnlyDigits) {
@@ -184,7 +230,7 @@ export default function Home() {
     } else {
       showAppMessage('Escaneo cancelado.', 'info');
     }
-  }, [scannerActive, addCodeAndUpdateCounters]);
+  }, [scannerActive, addCodeAndUpdateCounters, associateNameToScans, scannedData]);
 
 
   useEffect(() => {
@@ -674,7 +720,14 @@ export default function Home() {
                                     </tr>
                                 </thead>
                                 <tbody className="bg-starbucks-white divide-y divide-gray-200">
-                                    {/* Las filas de esta tabla se agregarán aquí dinámicamente */}
+                                    {personalScans.map((data: PersonalScanItem) => (
+                                        <tr key={data.code}>
+                                            <td className="px-6 py-4 whitespace-nowrap font-mono">{data.code}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{data.sku}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm">{data.personal}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm">{data.encargado}</td>
+                                        </tr>
+                                    ))}
                                 </tbody>
                             </table>
                         </div>
