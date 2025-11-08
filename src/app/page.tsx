@@ -2,8 +2,7 @@
 import {useEffect, useRef, useState} from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
-import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
-import { QrCodeResultFormat } from 'html5-qrcode/core';
+import { Html5Qrcode, Html5QrcodeScannerState, QrCodeResultFormat } from 'html5-qrcode';
 
 type ScannedItem = {
   code: string;
@@ -61,8 +60,19 @@ export default function Home() {
     if (typeof window !== 'undefined') {
       initializeScanner();
     }
+    
+    const input = physicalScannerInputRef.current;
+    if (input) {
+      const downListener = (e: Event) => handlePhysicalScannerInput(e as KeyboardEvent);
+      input.addEventListener('keydown', downListener);
+      return () => {
+        if(input) {
+            input.removeEventListener('keydown', downListener);
+        }
+      };
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [scannerActive, selectedScannerMode]);
 
   const initializeScanner = () => {
     if (!html5QrCodeRef.current && typeof window !== 'undefined') {
@@ -125,8 +135,9 @@ export default function Home() {
     } else {
       setOtherCodesCount(prev => prev + 1);
     }
-
+    
     setSuccessModal({ isOpen: true, code: finalCode });
+
     if ('vibrate' in navigator) navigator.vibrate(200);
 
     const now = new Date();
@@ -257,24 +268,11 @@ export default function Home() {
           }, 150);
       }
   };
-
-  useEffect(() => {
-    const input = physicalScannerInputRef.current;
-    if (input) {
-      const downListener = (e: Event) => handlePhysicalScannerInput(e as KeyboardEvent);
-      input.addEventListener('keydown', downListener);
-      return () => {
-        input.removeEventListener('keydown', downListener);
-      };
-    }
-  }, [scannerActive, selectedScannerMode]);
   
   const startScanner = () => {
     if (!encargado.trim()) return showAppMessage('Por favor, ingresa el nombre del encargado.', 'duplicate');
     if (!selectedArea) return showAppMessage('Por favor, selecciona un área.', 'duplicate');
     
-    showAppMessage(selectedScannerMode === 'camara' ? 'Cámara activada. Apunta al código.' : 'Escáner físico activado. Conecta y comienza a escanear.', 'info');
-
     if(selectedScannerMode === 'camara') {
         startCameraScanner();
     } else {
@@ -293,9 +291,13 @@ export default function Home() {
   };
 
   const startCameraScanner = () => {
+    if (!html5QrCodeRef.current) {
+        initializeScanner();
+    }
     if (!camerasRef.current.length || !html5QrCodeRef.current) return showAppMessage('No se encontraron cámaras.', 'duplicate');
     const cameraId = (camerasRef.current[currentCameraIndexRef.current] as any).id;
-    setScannerActive(true);
+    
+    showAppMessage('Cámara activada. Apunta al código.', 'info');
 
     const config = {
         fps: 10,
@@ -317,6 +319,7 @@ export default function Home() {
         onScanSuccess, 
         (e: any) => {}
     ).then(() => {
+        setScannerActive(true);
         if (camerasRef.current.length > 1) setShowChangeCamera(true);
         const videoElement = document.querySelector('#reader video');
         if (videoElement) {
@@ -324,9 +327,9 @@ export default function Home() {
             const capabilities = videoTrackRef.current.getCapabilities();
             if(capabilities.torch || capabilities.zoom) setShowAdvancedControls(true);
             if(capabilities.torch) setShowFlashControl(true);
-            if(capabilities.zoom) {
+            if(capabilities.zoom && capabilities.zoom.max > capabilities.zoom.min) {
                 setShowZoomControl(true);
-                if(zoomSliderRef.current && capabilities.zoom) {
+                if(zoomSliderRef.current) {
                     zoomSliderRef.current.min = capabilities.zoom.min.toString();
                     zoomSliderRef.current.max = capabilities.zoom.max.toString();
                     zoomSliderRef.current.step = capabilities.zoom.step.toString();
@@ -348,6 +351,8 @@ export default function Home() {
             videoTrackRef.current = null;
             setShowAdvancedControls(false);
             setShowChangeCamera(false);
+            setShowFlashControl(false);
+            setShowZoomControl(false);
             showAppMessage('Escaneo detenido.', 'info');
         }).catch(err => console.error("Error al detener.", err));
     }
@@ -369,10 +374,11 @@ export default function Home() {
 
   const changeCamera = () => {
       if (scannerActive && camerasRef.current.length > 1 && html5QrCodeRef.current) {
-          html5QrCodeRef.current.stop().then(() => {
-              currentCameraIndexRef.current = (currentCameraIndexRef.current + 1) % camerasRef.current.length;
-              startCameraScanner();
-          });
+          stopCameraScanner();
+          setTimeout(() => {
+            currentCameraIndexRef.current = (currentCameraIndexRef.current + 1) % camerasRef.current.length;
+            startCameraScanner();
+          }, 100);
       }
   };
 
