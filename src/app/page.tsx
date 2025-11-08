@@ -2,10 +2,8 @@
 import {useEffect, useRef, useState} from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
-
-// Since html5-qrcode is a client-side library that interacts with the DOM,
-// we need to dynamically import it inside a useEffect hook.
-let Html5Qrcode;
+import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
+import { QrCodeResultFormat } from 'html5-qrcode/core';
 
 export default function Home() {
   const [message, setMessage] = useState({text: 'Esperando para escanear...', type: 'info'});
@@ -31,42 +29,38 @@ export default function Home() {
     resolve: (value: boolean) => {},
   });
 
-  const html5QrCodeRef = useRef(null);
-  const videoTrackRef = useRef(null);
-  const physicalScannerInputRef = useRef(null);
-  const zoomSliderRef = useRef(null);
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+  const videoTrackRef = useRef<MediaStreamTrack | null>(null);
+  const physicalScannerInputRef = useRef<HTMLInputElement | null>(null);
+  const zoomSliderRef = useRef<HTMLInputElement | null>(null);
   const camerasRef = useRef([]);
   const currentCameraIndexRef = useRef(0);
   const lastScanTimeRef = useRef(0);
-  const lastSuccessfullyScannedCodeRef = useRef(null);
+  const lastSuccessfullyScannedCodeRef = useRef<string | null>(null);
   const scannedCodesRef = useRef(new Set());
   const bufferRef = useRef('');
-  const scanTimeoutRef = useRef(null);
+  const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const APPS_SCRIPT_URL =
     'https://script.google.com/macros/s/AKfycbwxN5n-iE0pi3JlOkImBgWD3-qptWsJxdyMJjXbRySgGvi7jqIsU9Puo7p2uvu5BioIbQ/exec';
   const MIN_SCAN_INTERVAL = 500;
 
   useEffect(() => {
-    import('html5-qrcode')
-      .then(module => {
-        Html5Qrcode = module.Html5Qrcode;
-        initializeScanner();
-      })
-      .catch(err => {
-        console.error('Failed to load html5-qrcode', err);
-      });
+    if (typeof window !== 'undefined') {
+      initializeScanner();
+    }
   }, []);
 
   const initializeScanner = () => {
-    if (!Html5Qrcode) return;
-    html5QrCodeRef.current = new Html5Qrcode('reader');
+    if (!html5QrCodeRef.current) {
+        html5QrCodeRef.current = new Html5Qrcode('reader');
+    }
     Html5Qrcode.getCameras()
       .then(devices => {
         if (devices && devices.length) {
           camerasRef.current = devices;
           const rearCameraIndex = camerasRef.current.findIndex(
-            camera =>
+            (camera: any) =>
               camera.label.toLowerCase().includes('back') ||
               camera.label.toLowerCase().includes('trasera')
           );
@@ -95,7 +89,7 @@ export default function Home() {
     setIngresarDatosEnabled(false);
   };
 
-  const addCodeAndUpdateCounters = codeToAdd => {
+  const addCodeAndUpdateCounters = (codeToAdd: string) => {
     const finalCode = codeToAdd.trim();
     if (finalCode.startsWith('4') && finalCode.length !== 11) {
       alert(
@@ -150,7 +144,7 @@ export default function Home() {
     return true;
   };
 
-  const onScanSuccess = async (decodedText, decodedResult) => {
+  const onScanSuccess = async (decodedText: string, decodedResult: QrCodeResultFormat) => {
     if (!scannerActive || Date.now() - lastScanTimeRef.current < MIN_SCAN_INTERVAL) return;
     lastScanTimeRef.current = Date.now();
 
@@ -173,12 +167,15 @@ export default function Home() {
         laserLine.addEventListener('animationend', () => laserLine.classList.remove('laser-flash'), { once: true });
     }
 
-    const isQrCode = decodedResult.result?.format?.formatName === 'QR_CODE';
+    const isBarcode = decodedResult.result?.format?.formatName !== 'QR_CODE';
     let confirmed = true;
 
-    if (isQrCode || (!finalCode.startsWith('4'))) {
-        const title = isQrCode ? 'Confirmar Código' : 'Advertencia';
-        const message = isQrCode ? 'Se ha detectado el siguiente código. ¿Desea agregarlo al registro?' : 'Este no es un código MEL, ¿desea agregar?';
+    if (isBarcode && finalCode.startsWith('4') && finalCode.length === 11) {
+        // Auto-accept MEL codes from barcodes
+        confirmed = true;
+    } else {
+        const title = isBarcode ? 'Advertencia' : 'Confirmar Código';
+        const message = isBarcode ? 'Este no es un código MEL, ¿desea agregar?' : 'Se ha detectado el siguiente código. ¿Desea agregarlo al registro?';
         confirmed = await showConfirmationDialog(title, message, finalCode);
     }
 
@@ -189,7 +186,7 @@ export default function Home() {
     }
   };
 
-  const processPhysicalScan = async (code) => {
+  const processPhysicalScan = async (code: string) => {
     if(!scannerActive || (Date.now() - lastScanTimeRef.current) < MIN_SCAN_INTERVAL) return;
     lastScanTimeRef.current = Date.now();
 
@@ -222,7 +219,7 @@ export default function Home() {
     }
   };
 
-  const handlePhysicalScannerInput = (event) => {
+  const handlePhysicalScannerInput = (event: KeyboardEvent) => {
       if(selectedScannerMode !== 'fisico' || !scannerActive) return;
 
       if(event.key === 'Enter') {
@@ -236,7 +233,7 @@ export default function Home() {
 
       if(event.key.length === 1) {
           bufferRef.current += event.key;
-          clearTimeout(scanTimeoutRef.current);
+          if(scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
           scanTimeoutRef.current = setTimeout(() => {
               if(bufferRef.current.length > 0) {
                   processPhysicalScan(bufferRef.current);
@@ -280,8 +277,8 @@ export default function Home() {
   };
 
   const startCameraScanner = () => {
-    if (!camerasRef.current.length) return showAppMessage('No se encontraron cámaras.', 'duplicate');
-    const cameraId = camerasRef.current[currentCameraIndexRef.current].id;
+    if (!camerasRef.current.length || !html5QrCodeRef.current) return showAppMessage('No se encontraron cámaras.', 'duplicate');
+    const cameraId = (camerasRef.current[currentCameraIndexRef.current] as any).id;
     setScannerActive(true);
 
     html5QrCodeRef.current.start(
@@ -297,7 +294,7 @@ export default function Home() {
             }
         },
         onScanSuccess, 
-        (e) => {}
+        (e: any) => {}
     ).then(() => {
         if (camerasRef.current.length > 1) setShowChangeCamera(true);
         const videoElement = document.querySelector('#reader video');
@@ -308,11 +305,11 @@ export default function Home() {
             if(capabilities.torch) setShowFlashControl(true);
             if(capabilities.zoom) {
                 setShowZoomControl(true);
-                if(zoomSliderRef.current) {
-                    zoomSliderRef.current.min = capabilities.zoom.min;
-                    zoomSliderRef.current.max = capabilities.zoom.max;
-                    zoomSliderRef.current.step = capabilities.zoom.step;
-                    zoomSliderRef.current.value = capabilities.zoom.min;
+                if(zoomSliderRef.current && capabilities.zoom) {
+                    zoomSliderRef.current.min = capabilities.zoom.min.toString();
+                    zoomSliderRef.current.max = capabilities.zoom.max.toString();
+                    zoomSliderRef.current.step = capabilities.zoom.step.toString();
+                    zoomSliderRef.current.value = capabilities.zoom.min.toString();
                 }
             }
         }
@@ -344,13 +341,13 @@ export default function Home() {
   const stopPhysicalScanner = () => {
       setScannerActive(false);
       bufferRef.current = '';
-      clearTimeout(scanTimeoutRef.current);
+      if(scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
       physicalScannerInputRef.current?.blur();
       showAppMessage('Escáner físico detenido.', 'info');
   };
 
   const changeCamera = () => {
-      if (scannerActive && camerasRef.current.length > 1) {
+      if (scannerActive && camerasRef.current.length > 1 && html5QrCodeRef.current) {
           html5QrCodeRef.current.stop().then(() => {
               currentCameraIndexRef.current = (currentCameraIndexRef.current + 1) % camerasRef.current.length;
               startCameraScanner();
@@ -359,36 +356,36 @@ export default function Home() {
   };
 
   const toggleFlash = () => {
-      if(videoTrackRef.current) {
+      if(videoTrackRef.current && 'applyConstraints' in videoTrackRef.current) {
           const newFlashState = !isFlashOn;
-          videoTrackRef.current.applyConstraints({ advanced: [{ torch: newFlashState }] });
+          (videoTrackRef.current as any).applyConstraints({ advanced: [{ torch: newFlashState }] });
           setIsFlashOn(newFlashState);
       }
   };
 
-  const handleZoom = (event) => {
-      if(videoTrackRef.current) {
+  const handleZoom = (event: React.ChangeEvent<HTMLInputElement>) => {
+      if(videoTrackRef.current && 'applyConstraints' in videoTrackRef.current) {
           try {
-              videoTrackRef.current.applyConstraints({ advanced: [{ zoom: event.target.value }] });
+              (videoTrackRef.current as any).applyConstraints({ advanced: [{ zoom: event.target.value }] });
           } catch(error) {
               console.error("Error al aplicar zoom:", error);
           }
       }
   };
 
-  const showConfirmationDialog = (title, message, code) => {
+  const showConfirmationDialog = (title: string, message: string, code: string): Promise<boolean> => {
       return new Promise((resolve) => {
-          if (scannerActive && selectedScannerMode === 'camara') {
+          if (scannerActive && selectedScannerMode === 'camara' && html5QrCodeRef.current?.getState() === Html5QrcodeScannerState.SCANNING) {
               html5QrCodeRef.current?.pause(true);
           }
           setConfirmation({ isOpen: true, title, message, code, resolve });
       });
   };
 
-  const handleConfirmation = (decision) => {
+  const handleConfirmation = (decision: boolean) => {
       confirmation.resolve(decision);
       setConfirmation({ isOpen: false, title: '', message: '', code: '', resolve: () => {} });
-      if (scannerActive && selectedScannerMode === 'camara') {
+      if (scannerActive && selectedScannerMode === 'camara' && html5QrCodeRef.current?.getState() === Html5QrcodeScannerState.PAUSED) {
           html5QrCodeRef.current?.resume();
       }
       if (selectedScannerMode === 'fisico' && scannerActive) {
@@ -421,7 +418,7 @@ export default function Home() {
       }
   };
   
-  const deleteRow = (codeToDelete) => {
+  const deleteRow = (codeToDelete: string) => {
     if (window.confirm(`¿Confirmas que deseas borrar el registro "${codeToDelete}"?`)) {
         setScannedData(prev => prev.filter(item => item.code !== codeToDelete));
         scannedCodesRef.current.delete(codeToDelete);
@@ -447,7 +444,7 @@ export default function Home() {
           
           const encargadoName = encargado.trim().toUpperCase().replace(/ /g, '_') || 'SIN_NOMBRE';
           const etiquetas = `ETIQUETAS(${scannedCodesRef.current.size})`;
-          const removeAccents = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          const removeAccents = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
           const areaName = removeAccents(selectedArea.toUpperCase().replace(/ /g, '_'));
 
           const day = String(now.getDate()).padStart(2, '0');
@@ -509,17 +506,16 @@ export default function Home() {
     }
   };
 
-  const messageClasses = {
+  const messageClasses: any = {
       success: 'scan-success',
       duplicate: 'scan-duplicate',
       info: 'scan-info'
-  }[message.type];
+  };
 
   return (
     <>
         <Head>
             <title>Escáner de Códigos</title>
-            <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
         </Head>
 
         <main className="bg-starbucks-light-gray text-starbucks-dark min-h-screen flex items-center justify-center p-4">
@@ -579,7 +575,7 @@ export default function Home() {
                 </div>
 
                 <div id="result-container" className="space-y-4">
-                    <div id="message" className={`p-4 rounded-lg text-center font-semibold text-lg transition-all duration-300 ${messageClasses}`}>
+                    <div id="message" className={`p-4 rounded-lg text-center font-semibold text-lg transition-all duration-300 ${messageClasses[message.type]}`}>
                         {message.text}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
@@ -631,7 +627,7 @@ export default function Home() {
                                 </tr>
                             </thead>
                             <tbody id="scanned-list" className="bg-starbucks-white divide-y divide-gray-200">
-                                {scannedData.map((data) => (
+                                {scannedData.map((data: any) => (
                                     <tr key={data.code}>
                                         <td className="px-6 py-4 whitespace-nowrap font-mono">{data.code}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{data.fecha}</td>
@@ -649,12 +645,12 @@ export default function Home() {
                 </div>
             </div>
 
-            {loading && <div id="loading-overlay">
+            {loading && <div id="loading-overlay" style={{display: 'flex'}}>
                 <div className="overlay-spinner"></div>
                 <p className="text-xl font-semibold">Enviando registros...</p>
             </div>}
             
-            {confirmation.isOpen && <div id="qr-confirmation-overlay" className="p-4">
+            {confirmation.isOpen && <div id="qr-confirmation-overlay" className="p-4" style={{display: 'flex'}}>
                  <div className="bg-starbucks-white rounded-lg shadow-xl p-6 w-full max-w-md text-center space-y-4">
                     <h3 id="confirmation-title" className="text-lg font-bold text-starbucks-dark">{confirmation.title}</h3>
                     <p id="confirmation-message" className="text-sm text-gray-600">{confirmation.message}</p>
@@ -670,3 +666,5 @@ export default function Home() {
     </>
   );
 }
+
+    
