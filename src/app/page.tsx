@@ -245,21 +245,22 @@ export default function Home() {
     if (!isMounted || !readerRef.current) {
       return;
     }
-  
+
     if (!html5QrCodeRef.current) {
       html5QrCodeRef.current = new Html5Qrcode(readerRef.current.id, false);
     }
     const qrCode = html5QrCodeRef.current;
-  
+
     const cleanup = () => {
       if (qrCode && qrCode.getState() === Html5QrcodeScannerState.SCANNING) {
         return qrCode.stop().catch(err => {
+          if (String(err).includes('transition')) return;
           console.error("Fallo al detener el escáner en la limpieza", err);
         });
       }
       return Promise.resolve();
     };
-  
+
     if (scannerActive && selectedScannerMode === 'camara') {
       if (qrCode.getState() !== Html5QrcodeScannerState.SCANNING) {
         const config = {
@@ -272,7 +273,7 @@ export default function Home() {
               facingMode: "environment"
           }
         };
-  
+
         Html5Qrcode.getCameras().then(devices => {
            if (devices && devices.length) {
              camerasRef.current = devices;
@@ -309,8 +310,8 @@ export default function Home() {
                    }
                }
              }).catch(err => {
-                 console.error("Error al iniciar camara", err);
                  if (String(err).includes('transition')) return;
+                 console.error("Error al iniciar camara", err);
                  showAppMessage('Error al iniciar la cámara. Revisa los permisos.', 'duplicate');
                  setScannerActive(false);
              });
@@ -325,7 +326,7 @@ export default function Home() {
     } else if (!scannerActive) {
       cleanup();
     }
-  
+
     return () => {
       cleanup();
     };
@@ -613,22 +614,10 @@ export default function Home() {
     setLoading(true);
 
     try {
-      const { data: lastIdData, error: lastIdError } = await supabaseDB2
-        .from('personal')
-        .select('id')
-        .order('id', { ascending: false })
-        .limit(1)
-        .single();
-  
-      if (lastIdError && lastIdError.code !== 'PGRST116') { // PGRST116: no rows found
-        throw lastIdError;
-      }
-  
-      let nextId = (lastIdData?.id || 0) + 1;
-  
       const dataToInsert = personalScans.map((item) => ({
-        id: nextId++,
+        code: item.code,
         name: item.personal,
+        name_inc: item.encargado,
         product: item.sku,
       }));
 
@@ -859,6 +848,8 @@ export default function Home() {
     </>
   );
 }
+
+    
 
     
 
