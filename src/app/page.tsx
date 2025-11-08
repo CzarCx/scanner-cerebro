@@ -61,27 +61,30 @@ export default function Home() {
     if (typeof window !== 'undefined') {
       initializeScanner();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const initializeScanner = () => {
-    if (!html5QrCodeRef.current) {
-        html5QrCodeRef.current = new Html5Qrcode('reader', { verbose: false });
+    if (!html5QrCodeRef.current && typeof window !== 'undefined') {
+        const html5QrCode = new Html5Qrcode('reader', { verbose: false });
+        html5QrCodeRef.current = html5QrCode;
+
+        Html5Qrcode.getCameras()
+        .then(devices => {
+            if (devices && devices.length) {
+            camerasRef.current = devices;
+            const rearCameraIndex = camerasRef.current.findIndex(
+                (camera: any) =>
+                camera.label.toLowerCase().includes('back') ||
+                camera.label.toLowerCase().includes('trasera')
+            );
+            if (rearCameraIndex !== -1) {
+                currentCameraIndexRef.current = rearCameraIndex;
+            }
+            }
+        })
+        .catch(err => console.error('No se pudieron obtener las cámaras:', err));
     }
-    Html5Qrcode.getCameras()
-      .then(devices => {
-        if (devices && devices.length) {
-          camerasRef.current = devices;
-          const rearCameraIndex = camerasRef.current.findIndex(
-            (camera: any) =>
-              camera.label.toLowerCase().includes('back') ||
-              camera.label.toLowerCase().includes('trasera')
-          );
-          if (rearCameraIndex !== -1) {
-            currentCameraIndexRef.current = rearCameraIndex;
-          }
-        }
-      })
-      .catch(err => console.error('No se pudieron obtener las cámaras:', err));
   };
 
   const showAppMessage = (text: string, type: 'success' | 'duplicate' | 'info') => {
