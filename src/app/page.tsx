@@ -36,6 +36,10 @@ export default function Home() {
     code: '',
     resolve: (value: boolean) => {},
   });
+  const [successModal, setSuccessModal] = useState({
+    isOpen: false,
+    code: '',
+  });
 
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const videoTrackRef = useRef<MediaStreamTrack | null>(null);
@@ -119,7 +123,7 @@ export default function Home() {
       setOtherCodesCount(prev => prev + 1);
     }
 
-    showAppMessage(`ÉXITO: ${finalCode}`, 'success');
+    setSuccessModal({ isOpen: true, code: finalCode });
     if ('vibrate' in navigator) navigator.vibrate(200);
 
     const now = new Date();
@@ -180,7 +184,6 @@ export default function Home() {
     let confirmed = true;
 
     if (isBarcode && finalCode.startsWith('4') && finalCode.length === 11) {
-        // Auto-accept MEL codes from barcodes
         confirmed = true;
     } else {
         const title = isBarcode ? 'Advertencia' : 'Confirmar Código';
@@ -297,7 +300,7 @@ export default function Home() {
         experimentalFeatures: {
             useBarCodeDetectorIfSupported: true,
         },
-        formatsToSupport: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], // All formats
+        formatsToSupport: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
         videoConstraints: {
             width: { ideal: 1920 },
             height: { ideal: 1080 },
@@ -406,6 +409,11 @@ export default function Home() {
       if (selectedScannerMode === 'fisico' && scannerActive) {
           setTimeout(() => physicalScannerInputRef.current?.focus(), 100);
       }
+  };
+
+  const handleSuccessModalClose = () => {
+    setSuccessModal({ isOpen: false, code: '' });
+    showAppMessage('Esperando para escanear...', 'info');
   };
 
   const handleManualAdd = async () => {
@@ -676,9 +684,21 @@ export default function Home() {
                     </div>
                 </div>
             </div>}
+            
+            {successModal.isOpen && (
+              <div className="p-4" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.75)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100 }}>
+                <div className="bg-starbucks-white rounded-lg shadow-xl p-6 w-full max-w-md text-center space-y-4 text-starbucks-dark">
+                  <h3 className="text-lg font-bold">¡Éxito!</h3>
+                  <p>El código fue escaneado y guardado correctamente:</p>
+                  <div className="bg-starbucks-cream p-3 rounded-md font-mono text-sm break-words max-h-40 overflow-y-auto font-bold">{successModal.code}</div>
+                  <button onClick={handleSuccessModalClose} className="mt-4 px-6 py-2 bg-starbucks-green hover:bg-starbucks-accent text-white font-semibold rounded-lg shadow-md">
+                    Aceptar
+                  </button>
+                </div>
+              </div>
+            )}
 
         </main>
     </>
   );
-  
-    
+}
