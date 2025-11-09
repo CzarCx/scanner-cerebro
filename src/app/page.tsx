@@ -18,7 +18,7 @@ type ScannedItem = {
 
 type PersonalScanItem = {
   code: string;
-  sku: string; // SKU will be empty for now
+  sku: string; 
   personal: string;
   encargado: string;
 };
@@ -155,29 +155,66 @@ export default function Home() {
     return true;
   }, [encargado, selectedArea]);
 
-  const associateNameToScans = (name: string, pendingScans: ScannedItem[]) => {
-      const newPersonalScans: PersonalScanItem[] = [];
+  const associateNameToScans = async (name: string, pendingScans: ScannedItem[]) => {
+    if (pendingScans.length === 0) {
+      showAppMessage(`${name} escaneado, pero no había códigos pendientes.`, 'info');
+      return;
+    }
   
-      pendingScans.forEach(item => {
-        newPersonalScans.push({
-          code: item.code,
-          sku: '', // As per requirement, SKU is empty for now
-          personal: name,
-          encargado: item.encargado,
-        });
-      });
+    setLoading(true);
+    showAppMessage('Consultando SKU y Producto...', 'info');
   
-      if (newPersonalScans.length > 0) {
-        setPersonalScans(prev => [...prev, ...newPersonalScans].sort((a, b) => a.code.localeCompare(b.code)));
-        setScannedData([]); // Clear the unique scans table after association
-        scannedCodesRef.current.clear(); // also clear the ref set
-        setMelCodesCount(0);
-        setOtherCodesCount(0);
-        showAppMessage(`Se asociaron ${newPersonalScans.length} códigos a ${name}.`, 'success');
-      } else {
-        showAppMessage(`${name} escaneado, pero no había códigos pendientes.`, 'info');
+    const newPersonalScansPromises = pendingScans.map(async (item) => {
+      let sku = '';
+      let producto = ''; // This will hold the "Producto" value
+  
+      try {
+        const { data, error } = await supabase
+          .from('etiquetas') // Assuming the table is named 'etiquetas'
+          .select('SKU, Producto') // Selecting SKU and Producto
+          .eq('Código', item.code) // Matching the code
+          .single();
+  
+        if (error) {
+          // Will be caught by the outer try-catch
+          if (error.code !== 'PGRST116') { // Ignore "exact one row was not found"
+            throw error;
+          }
+        }
+  
+        if (data) {
+          sku = data.SKU || '';
+          producto = data.Producto || ''; // Use "Producto" for personal field
+        }
+      } catch (e: any) {
+        console.error(`Error al buscar el código ${item.code}:`, e.message);
+        // sku and producto remain empty
       }
-    };
+  
+      return {
+        code: item.code,
+        sku: sku,
+        personal: producto, // Storing "Producto" in the "personal" field
+        encargado: item.encargado,
+      };
+    });
+  
+    try {
+      const newPersonalScans = await Promise.all(newPersonalScansPromises);
+  
+      setPersonalScans(prev => [...prev, ...newPersonalScans].sort((a, b) => a.code.localeCompare(b.code)));
+      setScannedData([]);
+      scannedCodesRef.current.clear();
+      setMelCodesCount(0);
+      setOtherCodesCount(0);
+      showAppMessage(`Se asociaron ${newPersonalScans.length} códigos a ${name}.`, 'success');
+    } catch (e: any) {
+      showAppMessage(`Error al procesar los códigos: ${e.message}`, 'duplicate');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
 
   const showConfirmationDialog = (title: string, message: string, code: string): Promise<boolean> => {
       return new Promise((resolve) => {
@@ -199,7 +236,8 @@ export default function Home() {
 
     if (isLikelyName(finalCode)) {
       if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
-      associateNameToScans(finalCode, scannedData);
+      // Pass scannedData directly to the function
+      associateNameToScans(finalCode, scannedData); 
       lastSuccessfullyScannedCodeRef.current = finalCode;
       return;
     }
@@ -615,6 +653,7 @@ export default function Home() {
 
       if (error) {
         // This will throw the error to the catch block
+        console.error("Supabase error:", error);
         throw error;
       }
 
