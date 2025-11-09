@@ -5,7 +5,7 @@ import Head from 'next/head';
 import Image from 'next/image';
 import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 import { supabase } from '@/lib/supabaseClient';
-import { supabase as supabaseDB2 } from '@/lib/supabaseClient';
+import { supabaseDB2 } from '@/lib/supabaseClient';
 
 
 type ScannedItem = {
@@ -122,6 +122,12 @@ export default function Home() {
 
     if ('vibrate' in navigator) navigator.vibrate(200);
 
+    const laserLine = document.getElementById('laser-line');
+    if (laserLine) {
+        laserLine.classList.add('laser-flash');
+        laserLine.addEventListener('animationend', () => laserLine.classList.remove('laser-flash'), { once: true });
+    }
+
     const now = new Date();
     const fechaEscaneo = now.toLocaleDateString('es-MX', {
       year: 'numeric',
@@ -206,12 +212,6 @@ export default function Home() {
     }
 
     if (finalCode === lastSuccessfullyScannedCodeRef.current) return;
-
-    const laserLine = document.getElementById('laser-line');
-    if (laserLine) {
-        laserLine.classList.add('laser-flash');
-        laserLine.addEventListener('animationend', () => laserLine.classList.remove('laser-flash'), { once: true });
-    }
 
     const isBarcode = decodedResult.result?.format?.formatName !== 'QR_CODE';
     let confirmed = true;
@@ -447,6 +447,7 @@ export default function Home() {
                 }
             };
             qrCode.start(newCameraId, config, onScanSuccess, (e: any) => {}).catch(err => {
+              if (String(err).includes('transition')) return;
               console.error("Error changing camera", err);
               showAppMessage('Error al cambiar de cámara.', 'duplicate');
             });
@@ -603,6 +604,7 @@ export default function Home() {
       return;
     }
     setLoading(true);
+    showAppMessage('Guardando registros de personal...', 'info');
 
     try {
       const dataToInsert = personalScans.map((item) => ({
