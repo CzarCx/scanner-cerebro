@@ -162,39 +162,39 @@ export default function Home() {
     }
   
     setLoading(true);
-    showAppMessage('Consultando SKU y Producto...', 'info');
+    showAppMessage('Asociando códigos y consultando base de datos...', 'info');
   
     const newPersonalScansPromises = pendingScans.map(async (item) => {
       let sku = '';
-      let producto = ''; // This will hold the "Producto" value
+      let producto = '';
   
       try {
         const { data, error } = await supabase
-          .from('BASE DE DATOS ETIQUETAS IMPRESAS') // Corrected table name
-          .select('SKU, Producto') // Selecting SKU and Producto
-          .eq('Código', item.code) // Matching the code
+          .from('BASE DE DATOS ETIQUETAS IMPRESAS')
+          .select('SKU, Producto')
+          .eq('Código', item.code)
           .single();
   
-        if (error) {
-          // Will be caught by the outer try-catch
-          if (error.code !== 'PGRST116') { // Ignore "exact one row was not found"
-            throw error;
-          }
+        if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found, which is not a fatal error here
+          throw error;
         }
   
         if (data) {
           sku = data.SKU || '';
-          producto = data.Producto || ''; // Use "Producto" for personal field
+          producto = data.Producto || '';
+        } else {
+          // This is where we can notify the user that the code was not found
+          showAppMessage(`Código ${item.code} no encontrado. Se añade sin SKU/Producto.`, 'info');
         }
       } catch (e: any) {
         console.error(`Error al buscar el código ${item.code}:`, e.message);
-        // sku and producto remain empty
+        showAppMessage(`Error al buscar ${item.code}: ${e.message}`, 'duplicate');
       }
   
       return {
         code: item.code,
-        sku: sku,
-        personal: producto, // Storing "Producto" in the "personal" field
+        sku: producto, // Storing "Producto" in the "sku" field.
+        personal: name, // Storing the scanned name in the "personal" field
         encargado: item.encargado,
       };
     });
@@ -203,6 +203,7 @@ export default function Home() {
       const newPersonalScans = await Promise.all(newPersonalScansPromises);
   
       setPersonalScans(prev => [...prev, ...newPersonalScans].sort((a, b) => a.code.localeCompare(b.code)));
+      // Clear the pending scans
       setScannedData([]);
       scannedCodesRef.current.clear();
       setMelCodesCount(0);
@@ -236,7 +237,6 @@ export default function Home() {
 
     if (isLikelyName(finalCode)) {
       if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
-      // Pass scannedData directly to the function
       associateNameToScans(finalCode, scannedData); 
       lastSuccessfullyScannedCodeRef.current = finalCode;
       return;
@@ -865,6 +865,8 @@ export default function Home() {
     </>
   );
 }
+
+    
 
     
 
