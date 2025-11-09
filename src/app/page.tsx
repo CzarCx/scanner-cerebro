@@ -187,7 +187,6 @@ export default function Home() {
 
   const onScanSuccess = useCallback(async (decodedText: string, decodedResult: any) => {
     setLastScanned(decodedText);
-    console.log(`Código escaneado (raw): ${decodedText}`);
 
     if (!scannerActive || Date.now() - lastScanTimeRef.current < MIN_SCAN_INTERVAL) return;
     lastScanTimeRef.current = Date.now();
@@ -198,11 +197,10 @@ export default function Home() {
       if (parsedJson && parsedJson.id) finalCode = parsedJson.id;
     } catch (e) {}
 
-    // Check if it's a name
     if (isLikelyName(finalCode)) {
       if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
       associateNameToScans(finalCode, scannedData);
-      lastSuccessfullyScannedCodeRef.current = finalCode; // Prevent re-scanning the same name
+      lastSuccessfullyScannedCodeRef.current = finalCode;
       return;
     }
 
@@ -236,91 +234,88 @@ export default function Home() {
     setIsMounted(true);
   }, []);
 
-  // Efecto para inicializar y limpiar el escáner
   useEffect(() => {
-    if (!isMounted || !readerRef.current) {
-      return;
-    }
+    if (!isMounted || !readerRef.current) return;
 
     if (!html5QrCodeRef.current) {
-      html5QrCodeRef.current = new Html5Qrcode(readerRef.current.id, false);
+        html5QrCodeRef.current = new Html5Qrcode(readerRef.current.id, false);
     }
     const qrCode = html5QrCodeRef.current;
 
     const cleanup = () => {
-      if (qrCode && qrCode.getState() === Html5QrcodeScannerState.SCANNING) {
-        return qrCode.stop().catch(err => {
-          if (String(err).includes('transition')) return;
-          console.error("Fallo al detener el escáner en la limpieza", err);
-        });
-      }
-      return Promise.resolve();
+        if (qrCode && qrCode.getState() === Html5QrcodeScannerState.SCANNING) {
+            return qrCode.stop().catch(err => {
+                if (String(err).includes('transition')) return;
+                console.error("Fallo al detener el escáner en la limpieza:", err);
+            });
+        }
+        return Promise.resolve();
     };
 
     if (scannerActive && selectedScannerMode === 'camara') {
-      if (qrCode.getState() !== Html5QrcodeScannerState.SCANNING) {
-        const config = {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-          videoConstraints: {
-              width: { ideal: 1920 },
-              height: { ideal: 1080 },
-              facingMode: "environment"
-          }
-        };
+        if (qrCode.getState() !== Html5QrcodeScannerState.SCANNING) {
+            const config = {
+                fps: 10,
+                qrbox: { width: 250, height: 250 },
+                experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+                videoConstraints: {
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    facingMode: "environment"
+                }
+            };
 
-        Html5Qrcode.getCameras().then(devices => {
-           if (devices && devices.length) {
-             camerasRef.current = devices;
-             const rearCameraIndex = devices.findIndex(
-                 (camera: any) =>
-                 camera.label.toLowerCase().includes('back') ||
-                 camera.label.toLowerCase().includes('trasera')
-             );
-             if (rearCameraIndex !== -1) {
-                 currentCameraIndexRef.current = rearCameraIndex;
-             }
-             if (devices.length > 1) setShowChangeCamera(true);
+            Html5Qrcode.getCameras().then(devices => {
+               if (devices && devices.length) {
+                 camerasRef.current = devices;
+                 const rearCameraIndex = devices.findIndex(
+                     (camera: any) =>
+                     camera.label.toLowerCase().includes('back') ||
+                     camera.label.toLowerCase().includes('trasera')
+                 );
+                 if (rearCameraIndex !== -1) {
+                     currentCameraIndexRef.current = rearCameraIndex;
+                 }
+                 if (devices.length > 1) setShowChangeCamera(true);
 
-             const cameraId = devices[currentCameraIndexRef.current].id;
-             
-             qrCode.start(cameraId, config, onScanSuccess, (e: any) => {}).then(() => {
-               const videoElement = document.querySelector(`#${readerRef.current!.id} video`);
-               if (videoElement) {
-                   const stream = (videoElement as HTMLVideoElement).srcObject as MediaStream;
-                   const track = stream.getVideoTracks()[0];
-                   videoTrackRef.current = track;
-                   
-                   const capabilities = track.getCapabilities();
-                   if(capabilities.torch || capabilities.zoom) setShowAdvancedControls(true);
-                   if(capabilities.torch) setShowFlashControl(true);
-                   if(capabilities.zoom && capabilities.zoom.max > capabilities.zoom.min) {
-                       setShowZoomControl(true);
-                       if(zoomSliderRef.current) {
-                           zoomSliderRef.current.min = capabilities.zoom.min!.toString();
-                           zoomSliderRef.current.max = capabilities.zoom.max!.toString();
-                           zoomSliderRef.current.step = capabilities.zoom.step!.toString();
-                           zoomSliderRef.current.value = track.getSettings().zoom!.toString();
+                 const cameraId = devices[currentCameraIndexRef.current].id;
+                 
+                 qrCode.start(cameraId, config, onScanSuccess, (e: any) => {}).then(() => {
+                   const videoElement = document.querySelector(`#${readerRef.current!.id} video`);
+                   if (videoElement) {
+                       const stream = (videoElement as HTMLVideoElement).srcObject as MediaStream;
+                       const track = stream.getVideoTracks()[0];
+                       videoTrackRef.current = track;
+                       
+                       const capabilities = track.getCapabilities();
+                       if(capabilities.torch || capabilities.zoom) setShowAdvancedControls(true);
+                       if(capabilities.torch) setShowFlashControl(true);
+                       if(capabilities.zoom && capabilities.zoom.max > capabilities.zoom.min) {
+                           setShowZoomControl(true);
+                           if(zoomSliderRef.current) {
+                               zoomSliderRef.current.min = capabilities.zoom.min!.toString();
+                               zoomSliderRef.current.max = capabilities.zoom.max!.toString();
+                               zoomSliderRef.current.step = capabilities.zoom.step!.toString();
+                               zoomSliderRef.current.value = track.getSettings().zoom!.toString();
+                           }
                        }
                    }
+                 }).catch(err => {
+                     if (String(err).includes('transition')) return;
+                     console.error("Error al iniciar camara:", err);
+                     showAppMessage('Error al iniciar la cámara. Revisa los permisos.', 'duplicate');
+                     setScannerActive(false);
+                 });
                }
-             }).catch(err => {
-                 if (String(err).includes('transition')) return;
-                 console.error("Error al iniciar camara", err);
-                 showAppMessage('Error al iniciar la cámara. Revisa los permisos.', 'duplicate');
-                 setScannerActive(false);
-             });
-           }
-        }).catch(err => {
-           if (String(err).includes('transition')) return;
-           console.error('No se pudieron obtener las cámaras:', err);
-           showAppMessage('No se encontraron cámaras.', 'duplicate');
-           setScannerActive(false);
-        });
-      }
-    } else if (!scannerActive) {
-      cleanup();
+            }).catch(err => {
+               if (String(err).includes('transition')) return;
+               console.error('No se pudieron obtener las cámaras:', err);
+               showAppMessage('No se encontraron cámaras.', 'duplicate');
+               setScannerActive(false);
+            });
+        }
+    } else {
+        cleanup();
     }
 
     return () => {
@@ -416,7 +411,6 @@ export default function Home() {
     if(scannerActive) {
       setScannerActive(false);
       showAppMessage('Escaneo detenido.', 'info');
-      // Limpiar estados de controles de cámara
       setShowAdvancedControls(false);
       setShowChangeCamera(false);
       setShowFlashControl(false);
@@ -451,6 +445,9 @@ export default function Home() {
               console.error("Error changing camera", err);
               showAppMessage('Error al cambiar de cámara.', 'duplicate');
             });
+          }).catch(err => {
+            if (String(err).includes('transition')) return;
+            console.error("Error al detener para cambiar de cámara:", err);
           });
       }
   };
@@ -617,6 +614,7 @@ export default function Home() {
       const { error } = await supabaseDB2.from('personal').insert(dataToInsert);
 
       if (error) {
+        // This will throw the error to the catch block
         throw error;
       }
 
@@ -625,6 +623,7 @@ export default function Home() {
 
     } catch (error: any) {
       console.error("Error al guardar datos de personal:", error);
+      // Now, display the specific error message from Supabase (e.g., RLS violation)
       showAppMessage(`Error al guardar: ${error.message}`, 'duplicate');
     } finally {
       setLoading(false);
