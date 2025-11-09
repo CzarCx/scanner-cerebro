@@ -170,7 +170,7 @@ export default function Home() {
   
       try {
         const { data, error } = await supabase
-          .from('etiquetas') // Assuming the table is named 'etiquetas'
+          .from('BASE DE DATOS ETIQUETAS IMPRESAS') // Corrected table name
           .select('SKU, Producto') // Selecting SKU and Producto
           .eq('Código', item.code) // Matching the code
           .single();
@@ -865,5 +865,7 @@ export default function Home() {
     </>
   );
 }
+
+    
 
     
