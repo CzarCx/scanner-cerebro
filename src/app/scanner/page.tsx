@@ -189,6 +189,30 @@ export default function ScannerPage() {
     }
   };
 
+  const handleAccept = async () => {
+      if (!lastScannedResult?.code) return;
+      setLoading(true);
+      try {
+          const { error } = await supabaseDB2
+              .from('personal')
+              .update({ status: 'CALIFICADO' })
+              .eq('code', lastScannedResult.code);
+
+          if (error) {
+              throw error;
+          }
+
+          alert('Calificación guardada correctamente.');
+          handleOpenRatingModal(false); // Cierra y resetea
+      } catch (e: any) {
+          console.error('Error guardando la calificación:', e);
+          alert(`Error al guardar la calificación: ${e.message}`);
+      } finally {
+          setLoading(false);
+      }
+  };
+
+
   useEffect(() => {
     if (isRatingModalOpen && showReportSelect && reportReasons.length === 0) {
         const fetchReportReasons = async () => {
@@ -302,7 +326,9 @@ export default function ScannerPage() {
                                     <Button size="lg" variant="destructive" onClick={() => setShowReportSelect(true)}>
                                         Reportar
                                     </Button>
-                                    <Button size="lg" type="submit" onClick={() => handleOpenRatingModal(false)} className="bg-green-600 hover:bg-green-700">Aceptar</Button>
+                                    <Button size="lg" onClick={handleAccept} className="bg-green-600 hover:bg-green-700">
+                                      {loading ? 'Guardando...' : 'Aceptar'}
+                                    </Button>
                                   </>
                                 )}
                             </DialogFooter>
