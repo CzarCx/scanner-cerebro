@@ -47,6 +47,7 @@ export default function ScannerPage() {
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
   const [reportReasons, setReportReasons] = useState<ReportReason[]>([]);
   const [selectedReport, setSelectedReport] = useState('');
+  const [showReportSelect, setShowReportSelect] = useState(false);
 
 
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
@@ -150,8 +151,17 @@ export default function ScannerPage() {
     };
   }, [scannerActive, onScanSuccess]);
 
+  const handleOpenRatingModal = (isOpen: boolean) => {
+    setIsRatingModalOpen(isOpen);
+    if (!isOpen) {
+        // Reset state when modal closes
+        setShowReportSelect(false);
+        setSelectedReport('');
+    }
+  }
+
   useEffect(() => {
-    if (isRatingModalOpen) {
+    if (isRatingModalOpen && showReportSelect && reportReasons.length === 0) {
         const fetchReportReasons = async () => {
             const { data, error } = await supabaseDB2
                 .from('reports')
@@ -166,7 +176,7 @@ export default function ScannerPage() {
 
         fetchReportReasons();
     }
-  }, [isRatingModalOpen]);
+  }, [isRatingModalOpen, showReportSelect, reportReasons.length]);
 
 
   return (
@@ -221,7 +231,7 @@ export default function ScannerPage() {
                             <h3 className="font-bold text-starbucks-dark uppercase text-sm">Producto</h3>
                             <p className="text-lg text-gray-800">{lastScannedResult.product || 'No especificado'}</p>
                         </div>
-                        <Dialog open={isRatingModalOpen} onOpenChange={setIsRatingModalOpen}>
+                        <Dialog open={isRatingModalOpen} onOpenChange={handleOpenRatingModal}>
                           <DialogTrigger asChild>
                             <Button className="w-full mt-4 bg-starbucks-accent hover:bg-starbucks-green text-white">
                               Calificar Empaquetado
@@ -235,31 +245,38 @@ export default function ScannerPage() {
                               </DialogDescription>
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
-                               <Select onValueChange={setSelectedReport} value={selectedReport}>
-                                <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Selecciona un motivo de reporte" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectGroup>
-                                    <SelectLabel>Motivos de Reporte</SelectLabel>
-                                    {reportReasons.map((reason) => (
-                                        <SelectItem key={reason.id} value={reason.t_report}>
-                                        {reason.t_report}
-                                        </SelectItem>
-                                    ))}
-                                    </SelectGroup>
-                                </SelectContent>
-                                </Select>
+                               {showReportSelect && (
+                                   <Select onValueChange={setSelectedReport} value={selectedReport}>
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="Selecciona un motivo de reporte" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectGroup>
+                                        <SelectLabel>Motivos de Reporte</SelectLabel>
+                                        {reportReasons.map((reason) => (
+                                            <SelectItem key={reason.id} value={reason.t_report}>
+                                            {reason.t_report}
+                                            </SelectItem>
+                                        ))}
+                                        </SelectGroup>
+                                    </SelectContent>
+                                    </Select>
+                               )}
                             </div>
                             <DialogFooter>
-                                <Button variant="destructive" onClick={() => {
-                                    // Lógica para reportar aquí
-                                    console.log('Reportado con motivo:', selectedReport);
-                                    setIsRatingModalOpen(false);
-                                }}>
-                                    Reportar
-                                </Button>
-                              <Button type="submit" onClick={() => setIsRatingModalOpen(false)} className="bg-green-600 hover:bg-green-700">Aceptar</Button>
+                                {showReportSelect ? (
+                                    <Button variant="destructive" onClick={() => {
+                                        console.log('Reportado con motivo:', selectedReport);
+                                        handleOpenRatingModal(false);
+                                    }}>
+                                        Enviar Reporte
+                                    </Button>
+                                ) : (
+                                    <Button variant="destructive" onClick={() => setShowReportSelect(true)}>
+                                        Reportar
+                                    </Button>
+                                )}
+                              <Button type="submit" onClick={() => handleOpenRatingModal(false)} className="bg-green-600 hover:bg-green-700">Calificar</Button>
                             </DialogFooter>
                           </DialogContent>
                         </Dialog>
