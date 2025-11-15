@@ -1,3 +1,4 @@
+
 'use client';
 import {useEffect, useRef, useState, useCallback} from 'react';
 import Head from 'next/head';
@@ -60,7 +61,7 @@ export default function ScannerPage() {
                 found: false,
             };
             setLastScannedResult(result);
-            setMessage('Código no encontrado en la base de datos de personal.');
+            setMessage('Esta etiqueta todavía no ha sido asignada.');
         }
     } catch (e: any) {
         const result: ScanResult = {
@@ -154,7 +155,7 @@ export default function ScannerPage() {
           </div>
 
           <div id="result-container" className="space-y-4">
-            <div className={`p-4 rounded-lg text-center font-semibold text-lg ${lastScannedResult?.found ? 'bg-green-100 border-green-400 text-green-700' : 'bg-blue-100 border-blue-400 text-blue-700'}`}>
+            <div className={`p-4 rounded-lg text-center font-semibold text-lg ${lastScannedResult?.found ? 'bg-green-100 border-green-400 text-green-700' : 'bg-yellow-100 border-yellow-400 text-yellow-700'}`}>
               {message}
             </div>
             {lastScannedResult && (
@@ -175,7 +176,9 @@ export default function ScannerPage() {
                         </div>
                     </>
                 ) : (
-                    lastScannedResult.error && <p className="text-red-600">Error: {lastScannedResult.error}</p>
+                  lastScannedResult.error ? (
+                    <p className="text-red-600">Error: {lastScannedResult.error}</p>
+                  ) : null
                 )}
               </div>
             )}
