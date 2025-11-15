@@ -32,6 +32,7 @@ type ScanResult = {
     code: string;
     found: boolean;
     error?: string;
+    status?: string | null;
 };
 
 type ReportReason = {
@@ -66,7 +67,7 @@ export default function ScannerPage() {
     try {
         const { data, error } = await supabaseDB2
             .from('personal')
-            .select('name, product')
+            .select('name, product, status')
             .eq('code', decodedText)
             .single();
 
@@ -80,9 +81,14 @@ export default function ScannerPage() {
                 product: data.product,
                 code: decodedText,
                 found: true,
+                status: data.status,
             };
             setLastScannedResult(result);
-            setMessage('Etiqueta confirmada correctamente.');
+            if (data.status === 'CALIFICADO' || data.status === 'REPORTADO') {
+                setMessage(`Etiqueta ya procesada (Estado: ${data.status}).`);
+            } else {
+                setMessage('Etiqueta confirmada correctamente.');
+            }
         } else {
             const result: ScanResult = {
                 name: null,
@@ -284,22 +290,27 @@ export default function ScannerPage() {
                             <h3 className="font-bold text-starbucks-dark uppercase text-sm">Producto</h3>
                             <p className="text-lg text-gray-800">{lastScannedResult.product || 'No especificado'}</p>
                         </div>
-                        <Dialog open={isRatingModalOpen} onOpenChange={handleOpenRatingModal}>
-                          <DialogTrigger asChild>
-                            <Button className="w-full mt-4 bg-starbucks-accent hover:bg-starbucks-green text-white">
-                              Calificar Empaquetado
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="sm:max-w-[425px]">
-                            <DialogHeader>
-                              <DialogTitle>Calificar Empaquetado</DialogTitle>
-                              <DialogDescription>
-                                ¿Cómo calificarías la calidad del empaquetado de este producto?
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="grid gap-4 py-4">
-                               {showReportSelect && (
-                                   <Select onValueChange={setSelectedReport} value={selectedReport}>
+                        {lastScannedResult.status === 'CALIFICADO' || lastScannedResult.status === 'REPORTADO' ? (
+                             <div className="text-center font-semibold text-orange-600 bg-orange-100 border border-orange-300 p-3 rounded-md">
+                                Esta etiqueta ya fue procesada. Estado: {lastScannedResult.status}
+                            </div>
+                        ) : (
+                            <Dialog open={isRatingModalOpen} onOpenChange={handleOpenRatingModal}>
+                            <DialogTrigger asChild>
+                                <Button className="w-full mt-4 bg-starbucks-accent hover:bg-starbucks-green text-white">
+                                Calificar Empaquetado
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[425px]">
+                                <DialogHeader>
+                                <DialogTitle>Calificar Empaquetado</DialogTitle>
+                                <DialogDescription>
+                                    ¿Cómo calificarías la calidad del empaquetado de este producto?
+                                </DialogDescription>
+                                </DialogHeader>
+                                <div className="grid gap-4 py-4">
+                                {showReportSelect && (
+                                    <Select onValueChange={setSelectedReport} value={selectedReport}>
                                     <SelectTrigger className="w-full">
                                         <SelectValue placeholder="Selecciona un motivo de reporte" />
                                     </SelectTrigger>
@@ -314,26 +325,27 @@ export default function ScannerPage() {
                                         </SelectGroup>
                                     </SelectContent>
                                     </Select>
-                               )}
-                            </div>
-                            <DialogFooter className="sm:justify-center">
-                                {showReportSelect ? (
-                                    <Button size="lg" variant="destructive" onClick={handleSendReport} disabled={loading}>
-                                        {loading ? 'Enviando...' : 'Enviar Reporte'}
-                                    </Button>
-                                ) : (
-                                  <>
-                                    <Button size="lg" variant="destructive" onClick={() => setShowReportSelect(true)}>
-                                        Reportar
-                                    </Button>
-                                    <Button size="lg" onClick={handleAccept} className="bg-green-600 hover:bg-green-700">
-                                      {loading ? 'Guardando...' : 'Aceptar'}
-                                    </Button>
-                                  </>
                                 )}
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
+                                </div>
+                                <DialogFooter className="sm:justify-center">
+                                    {showReportSelect ? (
+                                        <Button size="lg" variant="destructive" onClick={handleSendReport} disabled={loading}>
+                                            {loading ? 'Enviando...' : 'Enviar Reporte'}
+                                        </Button>
+                                    ) : (
+                                    <>
+                                        <Button size="lg" variant="destructive" onClick={() => setShowReportSelect(true)}>
+                                            Reportar
+                                        </Button>
+                                        <Button size="lg" onClick={handleAccept} className="bg-green-600 hover:bg-green-700">
+                                        {loading ? 'Guardando...' : 'Aceptar'}
+                                        </Button>
+                                    </>
+                                    )}
+                                </DialogFooter>
+                            </DialogContent>
+                            </Dialog>
+                        )}
                     </>
                 ) : (
                   lastScannedResult.error ? (
