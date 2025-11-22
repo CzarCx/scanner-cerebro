@@ -290,9 +290,10 @@ export default function ScannerPage() {
     setLoading(true);
     try {
         const codesToUpdate = massScannedCodes.map(item => item.code);
+        const qualificationTimestamp = new Date().toISOString();
         const { error } = await supabaseDB2
             .from('personal')
-            .update({ status: 'CALIFICADO', details: null })
+            .update({ status: 'CALIFICADO', details: null, data_cal: qualificationTimestamp })
             .in('code', codesToUpdate);
 
         if (error) {
