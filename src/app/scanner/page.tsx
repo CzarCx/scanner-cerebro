@@ -51,6 +51,10 @@ type ReportReason = {
     t_report: string;
 };
 
+type Encargado = {
+  name: string;
+};
+
 export default function ScannerPage() {
   const [message, setMessage] = useState('Apunte la cámara a un código QR.');
   const [lastScannedResult, setLastScannedResult] = useState<ScanResult | null>(null);
@@ -62,6 +66,7 @@ export default function ScannerPage() {
   const [showReportSelect, setShowReportSelect] = useState(false);
   const [selectedScannerMode, setSelectedScannerMode] = useState('camara');
   const [encargado, setEncargado] = useState('');
+  const [encargadosList, setEncargadosList] = useState<Encargado[]>([]);
   const [scanMode, setScanMode] = useState('individual');
   const [massScannedCodes, setMassScannedCodes] = useState<ScanResult[]>([]);
 
@@ -71,6 +76,22 @@ export default function ScannerPage() {
   const lastScanTimeRef = useRef(Date.now());
   const MIN_SCAN_INTERVAL = 2000; // 2 seconds between scans
   const massScannedCodesRef = useRef(new Set<string>());
+
+   useEffect(() => {
+    const fetchEncargados = async () => {
+        const { data, error } = await supabaseDB2
+            .from('personal_name')
+            .select('name')
+            .eq('rol', 'barra');
+
+        if (error) {
+            console.error('Error fetching encargados:', error);
+        } else {
+            setEncargadosList(data || []);
+        }
+    };
+    fetchEncargados();
+  }, []);
 
   const onScanSuccess = useCallback(async (decodedText: string) => {
     if (loading || Date.now() - lastScanTimeRef.current < MIN_SCAN_INTERVAL) return;
@@ -327,7 +348,18 @@ export default function ScannerPage() {
 
           <div className="space-y-2">
               <label htmlFor="encargado" className="block text-sm font-bold text-starbucks-dark mb-2">Nombre del Encargado:</label>
-              <input type="text" id="encargado" name="encargado" className="form-input" placeholder="Ej: Juan Pérez" value={encargado} onChange={(e) => setEncargado(e.target.value)} disabled={scannerActive} />
+               <Select onValueChange={setEncargado} value={encargado} disabled={scannerActive}>
+                  <SelectTrigger className="form-input">
+                      <SelectValue placeholder="Selecciona un encargado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                      {encargadosList.map((enc) => (
+                          <SelectItem key={enc.name} value={enc.name}>
+                              {enc.name}
+                          </SelectItem>
+                      ))}
+                  </SelectContent>
+              </Select>
           </div>
 
           <div className="space-y-2">
@@ -357,7 +389,7 @@ export default function ScannerPage() {
                 </div>
              )}
             <div id="scanner-controls" className="mt-4 flex flex-wrap gap-2 justify-center">
-              <button onClick={() => { setScannerActive(true); setLastScannedResult(null); setMessage('Apunte la cámara a un código QR.'); }} disabled={scannerActive || loading} className="px-4 py-2 text-white font-semibold rounded-lg shadow-md transition-colors duration-200 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400">
+              <button onClick={() => { setScannerActive(true); setLastScannedResult(null); setMessage('Apunte la cámara a un código QR.'); }} disabled={scannerActive || loading || !encargado} className="px-4 py-2 text-white font-semibold rounded-lg shadow-md transition-colors duration-200 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400">
                 Iniciar Escaneo
               </button>
               <button onClick={() => setScannerActive(false)} disabled={!scannerActive || loading} className="px-4 py-2 text-white font-semibold rounded-lg shadow-md transition-colors duration-200 bg-red-600 hover:bg-red-700 disabled:bg-gray-400">

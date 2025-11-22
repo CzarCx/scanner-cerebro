@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { XCircle, PackageCheck, AlertTriangle, Trash2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 
 type DeliveryItem = {
@@ -17,11 +24,16 @@ type DeliveryItem = {
   name: string | null;
 };
 
+type Encargado = {
+  name: string;
+};
+
 export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
   const [message, setMessage] = useState({text: 'Esperando para escanear...', type: 'info' as 'info' | 'success' | 'error' | 'warning'});
   const [lastScanned, setLastScanned] = useState<string | null>(null);
   const [encargado, setEncargado] = useState('');
+  const [encargadosList, setEncargadosList] = useState<Encargado[]>([]);
   const [deliveryList, setDeliveryList] = useState<DeliveryItem[]>([]);
   const [selectedScannerMode, setSelectedScannerMode] = useState('camara');
   const [scannerActive, setScannerActive] = useState(false);
@@ -39,6 +51,22 @@ export default function Home() {
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const MIN_SCAN_INTERVAL = 1500; // 1.5 seconds
+
+   useEffect(() => {
+    const fetchEncargados = async () => {
+        const { data, error } = await supabaseDB2
+            .from('personal_name')
+            .select('name')
+            .eq('rol', 'barra');
+
+        if (error) {
+            console.error('Error fetching encargados:', error);
+        } else {
+            setEncargadosList(data || []);
+        }
+    };
+    fetchEncargados();
+  }, []);
 
   const showAppMessage = (text: string, type: 'success' | 'error' | 'info' | 'warning') => {
     setMessage({text, type});
@@ -264,7 +292,18 @@ export default function Home() {
 
                 <div className="space-y-2">
                     <label htmlFor="encargado" className="block text-sm font-bold text-starbucks-dark mb-2">Nombre del Encargado:</label>
-                    <input type="text" id="encargado" name="encargado" className="form-input" placeholder="Ej: Juan Pérez" value={encargado} onChange={(e) => setEncargado(e.target.value)} disabled={scannerActive} />
+                     <Select onValueChange={setEncargado} value={encargado} disabled={scannerActive}>
+                        <SelectTrigger className="form-input">
+                            <SelectValue placeholder="Selecciona un encargado" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {encargadosList.map((enc) => (
+                                <SelectItem key={enc.name} value={enc.name}>
+                                    {enc.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
                 
                 <div className="space-y-2">
@@ -288,7 +327,7 @@ export default function Home() {
                     </div>
                     
                     <div id="scanner-controls" className="mt-4 flex flex-wrap gap-2 justify-center">
-                        <Button onClick={startScanner} disabled={scannerActive || loading} className="bg-blue-600 hover:bg-blue-700">Iniciar Escaneo</Button>
+                        <Button onClick={startScanner} disabled={scannerActive || loading || !encargado} className="bg-blue-600 hover:bg-blue-700">Iniciar Escaneo</Button>
                         <Button onClick={stopScanner} disabled={!scannerActive} variant="destructive">Detener Escaneo</Button>
                     </div>
 
@@ -369,4 +408,5 @@ export default function Home() {
     </>
   );
 }
+
     

@@ -6,6 +6,13 @@ import Image from 'next/image';
 import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 import { supabase } from '@/lib/supabaseClient';
 import { supabaseDB2 } from '@/lib/supabaseClient';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 
 type ScannedItem = {
@@ -23,6 +30,11 @@ type PersonalScanItem = {
   encargado: string;
 };
 
+type Encargado = {
+  name: string;
+};
+
+
 // Helper function to check if a string is likely a name
 const isLikelyName = (text: string): boolean => {
   const trimmed = text.trim();
@@ -36,11 +48,11 @@ export default function Home() {
   const [message, setMessage] = useState({text: 'Esperando para escanear...', type: 'info' as 'info' | 'success' | 'duplicate'});
   const [lastScanned, setLastScanned] = useState<string | null>(null);
   const [encargado, setEncargado] = useState('');
+  const [encargadosList, setEncargadosList] = useState<Encargado[]>([]);
   const [scannedData, setScannedData] = useState<ScannedItem[]>([]);
   const [personalScans, setPersonalScans] = useState<PersonalScanItem[]>([]);
   const [melCodesCount, setMelCodesCount] = useState(0);
   const [otherCodesCount, setOtherCodesCount] = useState(0);
-  const [selectedArea, setSelectedArea] = useState('REVISIÓN CALIDAD');
   const [selectedScannerMode, setSelectedScannerMode] = useState('camara');
   const [scannerActive, setScannerActive] = useState(false);
   const [ingresarDatosEnabled, setIngresarDatosEnabled] = useState(false);
@@ -77,6 +89,22 @@ export default function Home() {
   const APPS_SCRIPT_URL =
     'https://script.google.com/macros/s/AKfycbwxN5n-iE0pi3JlOkImBgWD3-qptWsJxdyMJjXbRySgGvi7jqIsU9Puo7p2uvu5BioIbQ/exec';
   const MIN_SCAN_INTERVAL = 500;
+
+  useEffect(() => {
+    const fetchEncargados = async () => {
+        const { data, error } = await supabaseDB2
+            .from('personal_name')
+            .select('name')
+            .eq('rol', 'barra');
+
+        if (error) {
+            console.error('Error fetching encargados:', error);
+        } else {
+            setEncargadosList(data || []);
+        }
+    };
+    fetchEncargados();
+  }, []);
 
   const showAppMessage = (text: string, type: 'success' | 'duplicate' | 'info') => {
     setMessage({text, type});
@@ -146,14 +174,14 @@ export default function Home() {
       fecha: fechaEscaneo,
       hora: horaEscaneo,
       encargado: encargado.trim(),
-      area: selectedArea,
+      area: 'REVISIÓN CALIDAD',
     };
     
     setScannedData(prevData => [newData, ...prevData].sort((a, b) => new Date(`1970/01/01T${b.hora}`).valueOf() - new Date(`1970/01/01T${a.hora}`).valueOf()));
 
     invalidateCSV();
     return true;
-  }, [encargado, selectedArea]);
+  }, [encargado]);
 
   const associateNameToScans = async (name: string, pendingScans: ScannedItem[]) => {
     if (pendingScans.length === 0) {
@@ -435,7 +463,6 @@ export default function Home() {
   
   const startScanner = () => {
     if (!encargado.trim()) return showAppMessage('Por favor, ingresa el nombre del encargado.', 'duplicate');
-    if (!selectedArea) return showAppMessage('Por favor, selecciona un área.', 'duplicate');
     setScannerActive(true);
     if(selectedScannerMode === 'camara') {
       showAppMessage('Cámara activada. Apunta al código.', 'info');
@@ -522,7 +549,6 @@ export default function Home() {
   const handleManualAdd = async () => {
       const manualCodeInput = document.getElementById('manual-code-input') as HTMLInputElement;
       if (!encargado.trim()) return showAppMessage('Por favor, ingresa el nombre del encargado.', 'duplicate');
-      if (!selectedArea) return showAppMessage('Por favor, selecciona un área.', 'duplicate');
 
       const manualCode = manualCodeInput.value.trim();
       if (!manualCode) return showAppMessage('Por favor, ingresa un código para agregar.', 'duplicate');
@@ -571,7 +597,7 @@ export default function Home() {
           const encargadoName = (encargado || "SIN_NOMBRE").trim().toUpperCase().replace(/ /g, '_');
           const etiquetas = `ETIQUETAS(${scannedCodesRef.current.size})`;
           const removeAccents = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          const areaName = removeAccents((selectedArea || "SIN_AREA").toUpperCase().replace(/ /g, '_'));
+          const areaName = removeAccents(("REVISIÓN CALIDAD").toUpperCase().replace(/ /g, '_'));
 
           const day = String(now.getDate()).padStart(2, '0');
           const year = String(now.getFullYear()).slice(-2);
@@ -691,7 +717,18 @@ export default function Home() {
 
                 <div className="space-y-2">
                     <label htmlFor="encargado" className="block text-sm font-bold text-starbucks-dark mb-2">Nombre del Encargado:</label>
-                    <input type="text" id="encargado" name="encargado" className="form-input" placeholder="Ej: Juan Pérez" value={encargado} onChange={(e) => setEncargado(e.target.value)} disabled={scannerActive} />
+                    <Select onValueChange={setEncargado} value={encargado} disabled={scannerActive}>
+                        <SelectTrigger className="form-input">
+                            <SelectValue placeholder="Selecciona un encargado" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {encargadosList.map((enc) => (
+                                <SelectItem key={enc.name} value={enc.name}>
+                                    {enc.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
                 
                 <div className="space-y-2">
@@ -857,3 +894,5 @@ export default function Home() {
     </>
   );
 }
+
+    
