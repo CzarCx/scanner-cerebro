@@ -294,7 +294,7 @@ const handleMassQualify = async () => {
 
         const { error } = await supabaseDB2
             .from('personal')
-            .update({ status: 'CALIFICADO', details: null, data_cal: qualificationTimestamp })
+            .update({ status: 'CALIFICADO', details: null, date_cal: qualificationTimestamp })
             .in('code', codesToUpdate);
 
         if (error) {
@@ -434,70 +434,66 @@ const handleMassQualify = async () => {
                             <h3 className="font-bold text-starbucks-dark uppercase text-sm">Producto</h3>
                             <p className="text-lg text-gray-800">{lastScannedResult.product || 'No especificado'}</p>
                         </div>
-                        {lastScannedResult.status === 'CALIFICADO' ? (
-                             <div className="text-center font-semibold text-orange-600 bg-orange-100 border border-orange-300 p-3 rounded-md">
-                                Esta etiqueta ya fue procesada. Estado: {lastScannedResult.status}
-                            </div>
-                        ) : (
-                            <Dialog open={isRatingModalOpen} onOpenChange={handleOpenRatingModal}>
-                            <DialogTrigger asChild>
-                                <Button className="w-full mt-4 bg-starbucks-accent hover:bg-starbucks-green text-white">
-                                Calificar Empaquetado
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="sm:max-w-[425px]">
-                                <DialogHeader>
-                                <DialogTitle>Calificar Empaquetado</DialogTitle>
-                                <DialogDescription>
-                                    ¿Cómo calificarías la calidad del empaquetado de este producto?
-                                </DialogDescription>
-                                </DialogHeader>
-                                <div className="grid gap-4 py-4">
-                                {lastScannedResult.status === 'REPORTADO' && (
-                                    <Alert variant="destructive">
-                                        <AlertTriangle className="h-4 w-4" />
-                                        <AlertTitle>Atención: Reporte Previo</AlertTitle>
-                                        <AlertDescription>
-                                            Este producto fue reportado por: <span className="font-semibold">{lastScannedResult.details || 'Motivo no especificado'}</span>.
-                                        </AlertDescription>
-                                    </Alert>
-                                )}
-                                {showReportSelect && (
-                                    <Select onValueChange={setSelectedReport} value={selectedReport}>
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Selecciona un motivo de reporte" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectGroup>
-                                        <SelectLabel>Motivos de Reporte</SelectLabel>
-                                        {reportReasons.map((reason) => (
-                                            <SelectItem key={reason.id} value={reason.t_report}>
-                                            {reason.t_report}
-                                            </SelectItem>
-                                        ))}
-                                        </SelectGroup>
-                                    </SelectContent>
-                                    </Select>
-                                )}
-                                </div>
-                                <DialogFooter className="sm:justify-center">
-                                    {showReportSelect ? (
-                                        <Button size="lg" variant="destructive" onClick={handleSendReport} disabled={loading || !selectedReport}>
-                                            {loading ? 'Enviando...' : 'Enviar Reporte'}
-                                        </Button>
-                                    ) : (
-                                    <>
-                                        <Button size="lg" variant="destructive" onClick={() => setShowReportSelect(true)}>
-                                            Reportar
-                                        </Button>
-                                        <Button size="lg" onClick={handleAccept} className="bg-green-600 hover:bg-green-700">
-                                        {loading ? 'Guardando...' : 'Aceptar'}
-                                        </Button>
-                                    </>
-                                    )}
-                                </DialogFooter>
-                            </DialogContent>
-                            </Dialog>
+                        {(lastScannedResult.status !== 'CALIFICADO' || lastScannedResult.status === 'REPORTADO') && (
+                             <Dialog open={isRatingModalOpen} onOpenChange={handleOpenRatingModal}>
+                             <DialogTrigger asChild>
+                                 <Button className="w-full mt-4 bg-starbucks-accent hover:bg-starbucks-green text-white">
+                                 Calificar Empaquetado
+                                 </Button>
+                             </DialogTrigger>
+                             <DialogContent className="sm:max-w-[425px]">
+                                 <DialogHeader>
+                                 <DialogTitle>Calificar Empaquetado</DialogTitle>
+                                 <DialogDescription>
+                                     ¿Cómo calificarías la calidad del empaquetado de este producto?
+                                 </DialogDescription>
+                                 </DialogHeader>
+                                 <div className="grid gap-4 py-4">
+                                 {lastScannedResult.status === 'REPORTADO' && (
+                                     <Alert variant="destructive">
+                                         <AlertTriangle className="h-4 w-4" />
+                                         <AlertTitle>Atención: Reporte Previo</AlertTitle>
+                                         <AlertDescription>
+                                             Este producto fue reportado por: <span className="font-semibold">{lastScannedResult.details || 'Motivo no especificado'}</span>.
+                                         </AlertDescription>
+                                     </Alert>
+                                 )}
+                                 {showReportSelect && (
+                                     <Select onValueChange={setSelectedReport} value={selectedReport}>
+                                     <SelectTrigger className="w-full">
+                                         <SelectValue placeholder="Selecciona un motivo de reporte" />
+                                     </SelectTrigger>
+                                     <SelectContent>
+                                         <SelectGroup>
+                                         <SelectLabel>Motivos de Reporte</SelectLabel>
+                                         {reportReasons.map((reason) => (
+                                             <SelectItem key={reason.id} value={reason.t_report}>
+                                             {reason.t_report}
+                                             </SelectItem>
+                                         ))}
+                                         </SelectGroup>
+                                     </SelectContent>
+                                     </Select>
+                                 )}
+                                 </div>
+                                 <DialogFooter className="sm:justify-center">
+                                     {showReportSelect ? (
+                                         <Button size="lg" variant="destructive" onClick={handleSendReport} disabled={loading || !selectedReport}>
+                                             {loading ? 'Enviando...' : 'Enviar Reporte'}
+                                         </Button>
+                                     ) : (
+                                     <>
+                                         <Button size="lg" variant="destructive" onClick={() => setShowReportSelect(true)}>
+                                             Reportar
+                                         </Button>
+                                         <Button size="lg" onClick={handleAccept} className="bg-green-600 hover:bg-green-700">
+                                         {loading ? 'Guardando...' : 'Aceptar'}
+                                         </Button>
+                                     </>
+                                     )}
+                                 </DialogFooter>
+                             </DialogContent>
+                             </Dialog>
                         )}
                     </>
                 ) : (
