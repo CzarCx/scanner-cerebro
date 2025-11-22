@@ -248,11 +248,12 @@ export default function Home() {
     showAppMessage('Actualizando estados...', 'info');
 
     const codesToUpdate = deliveryList.map(item => item.code);
+    const deliveryTimestamp = new Date().toISOString();
 
     try {
       const { error } = await supabaseDB2
         .from('personal')
-        .update({ status: 'ENTREGADO' })
+        .update({ status: 'ENTREGADO', date_entre: deliveryTimestamp })
         .in('code', codesToUpdate);
       
       if (error) throw error;
@@ -408,5 +409,3 @@ export default function Home() {
     </>
   );
 }
-
-    
