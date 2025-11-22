@@ -49,6 +49,8 @@ export default function ScannerPage() {
   const [reportReasons, setReportReasons] = useState<ReportReason[]>([]);
   const [selectedReport, setSelectedReport] = useState('');
   const [showReportSelect, setShowReportSelect] = useState(false);
+  const [selectedScannerMode, setSelectedScannerMode] = useState('camara');
+  const [encargado, setEncargado] = useState('');
 
 
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
@@ -61,6 +63,7 @@ export default function ScannerPage() {
     
     lastScanTimeRef.current = Date.now();
     setLoading(true);
+    setScannerActive(false);
     setMessage('Procesando código...');
     if ('vibrate' in navigator) navigator.vibrate(200);
 
@@ -132,7 +135,7 @@ export default function ScannerPage() {
         return Promise.resolve();
     };
 
-    if (scannerActive) {
+    if (scannerActive && selectedScannerMode === 'camara') {
         if (qrCode.getState() !== Html5QrcodeScannerState.SCANNING) {
             const config = {
                 fps: 10,
@@ -155,7 +158,7 @@ export default function ScannerPage() {
     return () => {
       cleanup();
     };
-  }, [scannerActive, onScanSuccess]);
+  }, [scannerActive, onScanSuccess, selectedScannerMode]);
 
   const handleOpenRatingModal = (isOpen: boolean) => {
     setIsRatingModalOpen(isOpen);
@@ -250,9 +253,22 @@ export default function ScannerPage() {
             <p className="text-gray-600 mt-1">Escanea el código QR de la etiqueta para ver los detalles.</p>
           </header>
 
+          <div className="space-y-2">
+              <label htmlFor="encargado" className="block text-sm font-bold text-starbucks-dark mb-2">Nombre del Encargado:</label>
+              <input type="text" id="encargado" name="encargado" className="form-input" placeholder="Ej: Juan Pérez" value={encargado} onChange={(e) => setEncargado(e.target.value)} disabled={scannerActive} />
+          </div>
+
+          <div className="space-y-2">
+              <label className="block text-sm font-bold text-starbucks-dark mb-2">Método de Escaneo:</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <button onClick={() => setSelectedScannerMode('camara')} className={`area-btn w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm focus:outline-none ${selectedScannerMode === 'camara' ? 'scanner-mode-selected' : ''}`} disabled={scannerActive}>CÁMARA</button>
+                  <button onClick={() => setSelectedScannerMode('fisico')} className={`area-btn w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm focus:outline-none ${selectedScannerMode === 'fisico' ? 'scanner-mode-selected' : ''}`} disabled={scannerActive}>ESCÁNER FÍSICO</button>
+              </div>
+          </div>
+
           <div className="bg-starbucks-cream p-4 rounded-lg">
             <div className="scanner-container">
-              <div id="reader" ref={readerRef}></div>
+              <div id="reader" ref={readerRef} style={{ display: selectedScannerMode === 'camara' ? 'block' : 'none' }}></div>
             </div>
              {loading && (
                 <div className="flex justify-center items-center mt-4">
@@ -267,6 +283,9 @@ export default function ScannerPage() {
               <button onClick={() => setScannerActive(false)} disabled={!scannerActive || loading} className="px-4 py-2 text-white font-semibold rounded-lg shadow-md transition-colors duration-200 bg-red-600 hover:bg-red-700 disabled:bg-gray-400">
                 Detener Escaneo
               </button>
+            </div>
+             <div id="physical-scanner-status" className="mt-4 text-center p-2 rounded-md bg-starbucks-accent text-white" style={{ display: scannerActive && selectedScannerMode === 'fisico' ? 'block' : 'none' }}>
+                Escáner físico listo. Conecta tu dispositivo y comienza a escanear.
             </div>
           </div>
 
