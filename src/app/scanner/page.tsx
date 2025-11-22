@@ -306,7 +306,7 @@ export default function ScannerPage() {
         massScannedCodesRef.current.clear();
 
     } catch (e: any) {
-        console.error('Error en la calificación masiva:', e);
+        console.error('Error en la calificación masiva:', e.message);
         alert(`Error al calificar masivamente: ${e.message}`);
     } finally {
         setLoading(false);
