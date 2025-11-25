@@ -13,6 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Button } from '@/components/ui/button';
+import { Zap, ZoomIn } from 'lucide-react';
 
 
 type ScannedItem = {
@@ -64,6 +66,9 @@ export default function Home() {
     code: '',
     resolve: (value: boolean) => {},
   });
+  const [cameraCapabilities, setCameraCapabilities] = useState<any>(null);
+  const [isFlashOn, setIsFlashOn] = useState(false);
+  const [zoom, setZoom] = useState(1);
 
   // Refs para elementos del DOM y la instancia del escáner
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
@@ -309,6 +314,27 @@ export default function Home() {
     }
   }, [scannerActive, addCodeAndUpdateCounters, associateNameToScans, scannedData]);
 
+  const applyCameraConstraints = (track: MediaStreamTrack) => {
+    track.applyConstraints({
+      advanced: [{
+        zoom: zoom,
+        torch: isFlashOn
+      }]
+    }).catch(e => console.error("Failed to apply constraints", e));
+  };
+
+  useEffect(() => {
+    if (scannerActive && selectedScannerMode === 'camara' && html5QrCodeRef.current?.isScanning) {
+      const videoElement = document.getElementById('reader')?.querySelector('video');
+      if (videoElement && videoElement.srcObject) {
+        const stream = videoElement.srcObject as MediaStream;
+        const track = stream.getVideoTracks()[0];
+        if (track) {
+          applyCameraConstraints(track);
+        }
+      }
+    }
+  }, [zoom, isFlashOn, scannerActive, selectedScannerMode]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -319,12 +345,17 @@ export default function Home() {
 
     const cleanup = () => {
       if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-        html5QrCodeRef.current.stop().catch(err => {
+        return html5QrCodeRef.current.stop().then(() => {
+            setCameraCapabilities(null);
+            setIsFlashOn(false);
+            setZoom(1);
+        }).catch(err => {
           if (!String(err).includes("not started")) {
             console.error("Fallo al detener el escáner:", err);
           }
         });
       }
+      return Promise.resolve();
     };
 
     if (scannerActive && selectedScannerMode === 'camara') {
@@ -344,7 +375,18 @@ export default function Home() {
           config,
           onScanSuccess,
           (errorMessage) => { /* No-op */ }
-        ).catch(err => {
+        ).then(() => {
+            const videoElement = document.getElementById('reader')?.querySelector('video');
+            if(videoElement && videoElement.srcObject) {
+                const stream = videoElement.srcObject as MediaStream;
+                const track = stream.getVideoTracks()[0];
+                if (track) {
+                    const capabilities = track.getCapabilities();
+                    setCameraCapabilities(capabilities);
+                    setZoom(capabilities.zoom?.min || 1);
+                }
+            }
+        }).catch(err => {
             console.error("Error al iniciar la cámara:", err);
             showAppMessage('Error al iniciar la cámara. Revisa los permisos.', 'duplicate');
             setScannerActive(false);
@@ -707,6 +749,32 @@ export default function Home() {
                             </div>
                         )}
                     </div>
+
+                    {scannerActive && selectedScannerMode === 'camara' && cameraCapabilities && (
+                        <div id="camera-controls" className="flex items-center gap-4 mt-4 p-2 rounded-lg bg-gray-200">
+                            {cameraCapabilities.torch && (
+                                <Button variant="ghost" size="icon" onClick={() => setIsFlashOn(prev => !prev)} className={isFlashOn ? 'bg-yellow-400' : ''}>
+                                    <Zap className="h-5 w-5" />
+                                </Button>
+                            )}
+                            {cameraCapabilities.zoom && (
+                                <div className="flex-1 flex items-center gap-2">
+                                    <ZoomIn className="h-5 w-5" />
+                                    <input
+                                        id="zoom-slider"
+                                        type="range"
+                                        min={cameraCapabilities.zoom.min}
+                                        max={cameraCapabilities.zoom.max}
+                                        step={cameraCapabilities.zoom.step}
+                                        value={zoom}
+                                        onChange={(e) => setZoom(parseFloat(e.target.value))}
+                                        className="w-full"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
                     <div id="scanner-controls" className="mt-4 flex flex-wrap gap-2 justify-center">
                         <button onClick={startScanner} disabled={scannerActive || !encargado} className={`px-4 py-2 text-white font-semibold rounded-lg shadow-md transition-colors duration-200 text-sm ${scannerActive || !encargado ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'}`}>Iniciar</button>
                         <button onClick={stopScanner} disabled={!scannerActive} className={`px-4 py-2 text-white font-semibold rounded-lg shadow-md transition-colors duration-200 text-sm ${!scannerActive ? 'bg-gray-400' : 'bg-red-600 hover:bg-red-700'}`}>Detener</button>
