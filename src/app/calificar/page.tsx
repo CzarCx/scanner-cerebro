@@ -56,6 +56,7 @@ type Encargado = {
 };
 
 export default function ScannerPage() {
+  const [isMounted, setIsMounted] = useState(false);
   const [message, setMessage] = useState('Apunte la cámara a un código QR.');
   const [lastScannedResult, setLastScannedResult] = useState<ScanResult | null>(null);
   const [scannerActive, setScannerActive] = useState(false);
@@ -200,7 +201,11 @@ export default function ScannerPage() {
   }, [zoom, isFlashOn, scannerActive, selectedScannerMode, isMobile, applyCameraConstraints]);
   
   useEffect(() => {
-    if (!readerRef.current) return;
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted || !readerRef.current) return;
 
     const cleanup = () => {
       if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
@@ -257,7 +262,7 @@ export default function ScannerPage() {
     return () => {
       cleanup();
     };
-  }, [scannerActive, selectedScannerMode, onScanSuccess, isMobile]);
+  }, [scannerActive, selectedScannerMode, onScanSuccess, isMobile, isMounted]);
 
 
   useEffect(() => {
