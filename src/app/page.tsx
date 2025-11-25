@@ -32,9 +32,11 @@ type ScannedItem = {
 
 type PersonalScanItem = {
   code: string;
-  sku: string; 
+  sku: string | null;
   personal: string;
   encargado: string;
+  product: string | null;
+  quantity: number | null;
 };
 
 type Encargado = {
@@ -208,37 +210,42 @@ export default function Home() {
     showAppMessage('Asociando códigos y consultando base de datos...', 'info');
   
     const newPersonalScansPromises = pendingScans.map(async (item) => {
-      let sku = '';
-      let producto = '';
+      let sku = item.sku;
+      let producto = item.producto;
+      let cantidad = item.cantidad;
   
-      try {
-        const { data, error } = await supabase
-          .from('BASE DE DATOS ETIQUETAS IMPRESAS')
-          .select('SKU, Producto')
-          .eq('Código', item.code)
-          .single();
-  
-        if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found, which is not a fatal error here
-          throw error;
-        }
-  
-        if (data) {
-          sku = data.SKU || '';
-          producto = data.Producto || '';
-        } else {
-          // This is where we can notify the user that the code was not found
-          showAppMessage(`Código ${item.code} no encontrado. Se añade sin SKU/Producto.`, 'info');
-        }
-      } catch (e: any) {
-        console.error(`Error al buscar el código ${item.code}:`, e.message);
-        showAppMessage(`Error al buscar ${item.code}: ${e.message}`, 'duplicate');
+      if (!sku || !producto || !cantidad) {
+          try {
+            const { data, error } = await supabase
+              .from('BASE DE DATOS ETIQUETAS IMPRESAS')
+              .select('SKU, Producto, Cantidad')
+              .eq('Código', item.code)
+              .single();
+    
+            if (error && error.code !== 'PGRST116') {
+              throw error;
+            }
+    
+            if (data) {
+              sku = data.SKU || '';
+              producto = data.Producto || '';
+              cantidad = data.Cantidad || 0;
+            } else {
+              showAppMessage(`Código ${item.code} no encontrado. Se añade sin SKU/Producto.`, 'info');
+            }
+          } catch (e: any) {
+            console.error(`Error al buscar el código ${item.code}:`, e.message);
+            showAppMessage(`Error al buscar ${item.code}: ${e.message}`, 'duplicate');
+          }
       }
   
       return {
         code: item.code,
-        sku: producto, // Storing "Producto" in the "sku" field.
-        personal: name, // Storing the scanned name in the "personal" field
+        sku: sku,
+        personal: name, 
         encargado: item.encargado,
+        product: producto,
+        quantity: cantidad,
       };
     });
   
@@ -246,7 +253,6 @@ export default function Home() {
       const newPersonalScans = await Promise.all(newPersonalScansPromises);
   
       setPersonalScans(prev => [...prev, ...newPersonalScans].sort((a, b) => a.code.localeCompare(b.code)));
-      // Clear the pending scans
       setScannedData([]);
       scannedCodesRef.current.clear();
       setMelCodesCount(0);
@@ -287,7 +293,6 @@ export default function Home() {
 
     if (finalCode === lastSuccessfullyScannedCodeRef.current) return;
     
-    // Validate code exists in the database
     setLoading(true);
     const { data, error } = await supabase
         .from('BASE DE DATOS ETIQUETAS IMPRESAS')
@@ -296,7 +301,7 @@ export default function Home() {
         .single();
     setLoading(false);
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+    if (error && error.code !== 'PGRST116') {
         showAppMessage(`Error de base de datos: ${error.message}`, 'duplicate');
         return;
     }
@@ -354,36 +359,30 @@ export default function Home() {
 
   useEffect(() => {
     if (!isMounted || !readerRef.current) return;
-
+  
     const cleanup = () => {
       if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
         return html5QrCodeRef.current.stop().catch(err => {
-          if (!String(err).includes("not started")) {
+          if (!String(err).includes('not started')) {
             console.error("Fallo al detener el escáner:", err);
           }
         });
       }
       return Promise.resolve();
     };
-
+  
     if (scannerActive && selectedScannerMode === 'camara') {
       if (!html5QrCodeRef.current) {
         html5QrCodeRef.current = new Html5Qrcode(readerRef.current.id, false);
       }
-      
+  
       if (html5QrCodeRef.current && !html5QrCodeRef.current.isScanning) {
         const config = {
           fps: 10,
           qrbox: { width: 250, height: 250 },
           experimentalFeatures: { useBarCodeDetectorIfSupported: true },
         };
-        
-        html5QrCodeRef.current.start(
-          { facingMode: "environment" },
-          config,
-          onScanSuccess,
-          (errorMessage) => { /* No-op */ }
-        ).then(() => {
+        html5QrCodeRef.current.start({ facingMode: "environment" }, config, onScanSuccess, (errorMessage) => {}).then(() => {
             if (isMobile) {
               const videoElement = document.getElementById('reader')?.querySelector('video');
               if(videoElement && videoElement.srcObject) {
@@ -413,7 +412,7 @@ export default function Home() {
         }
       });
     }
-
+  
     return () => {
       cleanup();
     };
@@ -448,7 +447,6 @@ export default function Home() {
     
     if (finalCode === lastSuccessfullyScannedCodeRef.current) return;
 
-    // Validate code exists in the database
     setLoading(true);
     const { data, error } = await supabase
         .from('BASE DE DATOS ETIQUETAS IMPRESAS')
@@ -457,7 +455,7 @@ export default function Home() {
         .single();
     setLoading(false);
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+    if (error && error.code !== 'PGRST116') {
         showAppMessage(`Error de base de datos: ${error.message}`, 'duplicate');
         return;
     }
@@ -550,7 +548,6 @@ export default function Home() {
       const manualCode = manualCodeInput.value.trim();
       if (!manualCode) return showAppMessage('Por favor, ingresa un código para agregar.', 'duplicate');
 
-      // Validate code exists in the database
         setLoading(true);
         const { data, error } = await supabase
             .from('BASE DE DATOS ETIQUETAS IMPRESAS')
@@ -559,7 +556,7 @@ export default function Home() {
             .single();
         setLoading(false);
 
-        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+        if (error && error.code !== 'PGRST116') { 
             showAppMessage(`Error de base de datos: ${error.message}`, 'duplicate');
             return;
         }
@@ -690,13 +687,14 @@ export default function Home() {
         code: item.code,
         name: item.personal,
         name_inc: item.encargado,
-        product: item.sku,
+        sku: item.sku,
+        product: item.product,
+        quantity: item.quantity,
       }));
 
       const { error } = await supabaseDB2.from('personal').insert(dataToInsert);
 
       if (error) {
-        // This will throw the error to the catch block
         console.error("Supabase error:", error);
         throw error;
       }
@@ -706,7 +704,6 @@ export default function Home() {
 
     } catch (error: any) {
       console.error("Error al guardar datos de personal:", error);
-      // Now, display the specific error message from Supabase (e.g., RLS violation)
       showAppMessage(`Error al guardar: ${error.message}`, 'duplicate');
     } finally {
       setLoading(false);
@@ -853,6 +850,7 @@ export default function Home() {
                                     <tr>
                                         <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-starbucks-dark uppercase tracking-wider">Codigo</th>
                                         <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-starbucks-dark uppercase tracking-wider">Personal</th>
+                                        <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-starbucks-dark uppercase tracking-wider">Producto</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-starbucks-white divide-y divide-gray-200">
@@ -860,6 +858,7 @@ export default function Home() {
                                         <tr key={data.code}>
                                             <td className="px-4 py-3 whitespace-nowrap font-mono text-sm">{data.code}</td>
                                             <td className="px-4 py-3 whitespace-nowrap text-sm">{data.personal}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm">{data.product}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -931,7 +930,5 @@ export default function Home() {
     </>
   );
 }
-
-    
 
     
