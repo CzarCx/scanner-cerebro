@@ -3,14 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { ScanLine, PackageCheck, UserCheck } from 'lucide-react';
+import { ScanLine, PackageCheck, UserCheck, UserPlus } from 'lucide-react';
 import Image from 'next/image';
 
 const navLinks = [
   { href: '/', label: 'Asignar', icon: <UserCheck className="h-5 w-5" /> },
-  { href: '/scanner', label: 'Calificar', icon: <ScanLine className="h-5 w-5" /> },
+  { href: '/calificar', label: 'Calificar', icon: <ScanLine className="h-5 w-5" /> },
   { href: '/entrega', label: 'Entrega', icon: <PackageCheck className="h-5 w-5" /> },
-  { href: '/registro-personal', label: 'Registrar Personal', icon: <UserCheck className="h-5 w-5" /> },
+  { href: '/registro-personal', label: 'Registrar Personal', icon: <UserPlus className="h-5 w-5" /> },
 ];
 
 export default function Navbar() {
@@ -28,7 +28,7 @@ export default function Navbar() {
           <div className="hidden md:block">
             <div className="ml-10 flex items-baseline space-x-4">
               {navLinks.map((link) => {
-                const isActive = (pathname === '/' && link.href === '/') || (pathname.startsWith(link.href) && link.href !== '/');
+                const isActive = pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href));
                 return (
                   <Link
                     key={link.href}
