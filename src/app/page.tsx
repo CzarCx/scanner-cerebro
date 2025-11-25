@@ -56,11 +56,6 @@ export default function Home() {
   const [selectedScannerMode, setSelectedScannerMode] = useState('camara');
   const [scannerActive, setScannerActive] = useState(false);
   const [ingresarDatosEnabled, setIngresarDatosEnabled] = useState(false);
-  const [isFlashOn, setIsFlashOn] = useState(false);
-  const [showAdvancedControls, setShowAdvancedControls] = useState(false);
-  const [showChangeCamera, setShowChangeCamera] = useState(false);
-  const [showFlashControl, setShowFlashControl] = useState(false);
-  const [showZoomControl, setShowZoomControl] = useState(false);
   const [loading, setLoading] = useState(false);
   const [confirmation, setConfirmation] = useState({
     isOpen: false,
@@ -72,14 +67,10 @@ export default function Home() {
 
   // Refs para elementos del DOM y la instancia del escáner
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
-  const videoTrackRef = useRef<MediaStreamTrack | null>(null);
   const physicalScannerInputRef = useRef<HTMLInputElement | null>(null);
-  const zoomSliderRef = useRef<HTMLInputElement | null>(null);
   const readerRef = useRef<HTMLDivElement>(null);
 
   // Refs para valores que no necesitan re-renderizar el componente
-  const camerasRef = useRef<any[]>([]);
-  const currentCameraIndexRef = useRef(0);
   const lastScanTimeRef = useRef(Date.now());
   const lastSuccessfullyScannedCodeRef = useRef<string | null>(null);
   const scannedCodesRef = useRef(new Set<string>());
@@ -327,84 +318,44 @@ export default function Home() {
     if (!isMounted || !readerRef.current) return;
 
     if (!html5QrCodeRef.current) {
-        html5QrCodeRef.current = new Html5Qrcode(readerRef.current.id, false);
+      html5QrCodeRef.current = new Html5Qrcode(readerRef.current.id, false);
     }
     const qrCode = html5QrCodeRef.current;
 
     const cleanup = () => {
-        if (qrCode && qrCode.getState() === Html5QrcodeScannerState.SCANNING) {
-            return qrCode.stop().catch(err => {
-                if (String(err).includes('transition')) return;
-                console.error("Fallo al detener el escáner en la limpieza:", err);
-            });
-        }
-        return Promise.resolve();
+      if (qrCode && qrCode.getState() === Html5QrcodeScannerState.SCANNING) {
+        return qrCode.stop().catch(err => {
+          if (!String(err).includes("not started")) {
+            console.error("Fallo al detener el escáner:", err);
+          }
+        });
+      }
+      return Promise.resolve();
     };
 
     if (scannerActive && selectedScannerMode === 'camara') {
-        if (qrCode.getState() !== Html5QrcodeScannerState.SCANNING) {
-            const config = {
-                fps: 10,
-                qrbox: { width: 250, height: 250 },
-                experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-                videoConstraints: {
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 },
-                    facingMode: "environment"
-                }
-            };
-
-            Html5Qrcode.getCameras().then(devices => {
-               if (devices && devices.length) {
-                 camerasRef.current = devices;
-                 const rearCameraIndex = devices.findIndex(
-                     (camera: any) =>
-                     camera.label.toLowerCase().includes('back') ||
-                     camera.label.toLowerCase().includes('trasera')
-                 );
-                 if (rearCameraIndex !== -1) {
-                     currentCameraIndexRef.current = rearCameraIndex;
-                 }
-                 if (devices.length > 1) setShowChangeCamera(true);
-
-                 const cameraId = devices[currentCameraIndexRef.current].id;
-                 
-                 qrCode.start(cameraId, config, onScanSuccess, (e: any) => {}).then(() => {
-                   const videoElement = document.querySelector(`#${readerRef.current!.id} video`);
-                   if (videoElement) {
-                       const stream = (videoElement as HTMLVideoElement).srcObject as MediaStream;
-                       const track = stream.getVideoTracks()[0];
-                       videoTrackRef.current = track;
-                       
-                       const capabilities = track.getCapabilities();
-                       if(capabilities.torch || capabilities.zoom) setShowAdvancedControls(true);
-                       if(capabilities.torch) setShowFlashControl(true);
-                       if(capabilities.zoom && capabilities.zoom.max > capabilities.zoom.min) {
-                           setShowZoomControl(true);
-                           if(zoomSliderRef.current) {
-                               zoomSliderRef.current.min = capabilities.zoom.min!.toString();
-                               zoomSliderRef.current.max = capabilities.zoom.max!.toString();
-                               zoomSliderRef.current.step = capabilities.zoom.step!.toString();
-                               zoomSliderRef.current.value = track.getSettings().zoom!.toString();
-                           }
-                       }
-                   }
-                 }).catch(err => {
-                     if (String(err).includes('transition')) return;
-                     console.error("Error al iniciar camara:", err);
-                     showAppMessage('Error al iniciar la cámara. Revisa los permisos.', 'duplicate');
-                     setScannerActive(false);
-                 });
-               }
-            }).catch(err => {
-               if (String(err).includes('transition')) return;
-               console.error('No se pudieron obtener las cámaras:', err);
-               showAppMessage('No se encontraron cámaras.', 'duplicate');
-               setScannerActive(false);
-            });
-        }
+      if (qrCode.getState() !== Html5QrcodeScannerState.SCANNING) {
+        const config = {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        };
+        
+        qrCode.start(
+          { facingMode: "environment" },
+          config,
+          onScanSuccess,
+          (errorMessage) => {
+            // No-op for scan errors
+          }
+        ).catch(err => {
+            console.error("Error al iniciar la cámara:", err);
+            showAppMessage('Error al iniciar la cámara. Revisa los permisos.', 'duplicate');
+            setScannerActive(false);
+        });
+      }
     } else {
-        cleanup();
+      cleanup();
     }
 
     return () => {
@@ -518,66 +469,12 @@ export default function Home() {
     if(scannerActive) {
       setScannerActive(false);
       showAppMessage('Escaneo detenido.', 'info');
-      setShowAdvancedControls(false);
-      setShowChangeCamera(false);
-      setShowFlashControl(false);
-      setShowZoomControl(false);
-      videoTrackRef.current = null;
       if (selectedScannerMode === 'fisico') {
         bufferRef.current = '';
         if(scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
         physicalScannerInputRef.current?.blur();
       }
     }
-  };
-
-  const changeCamera = () => {
-    const qrCode = html5QrCodeRef.current;
-      if (scannerActive && camerasRef.current.length > 1 && qrCode) {
-          qrCode.stop().then(() => {
-            currentCameraIndexRef.current = (currentCameraIndexRef.current + 1) % camerasRef.current.length;
-            const newCameraId = camerasRef.current[currentCameraIndexRef.current].id;
-             const config = {
-                fps: 10,
-                qrbox: { width: 250, height: 250 },
-                experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-                videoConstraints: {
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 },
-                    facingMode: "environment"
-                }
-            };
-            qrCode.start(newCameraId, config, onScanSuccess, (e: any) => {}).catch(err => {
-              if (String(err).includes('transition')) return;
-              console.error("Error changing camera", err);
-              showAppMessage('Error al cambiar de cámara.', 'duplicate');
-            });
-          }).catch(err => {
-            if (String(err).includes('transition')) return;
-            console.error("Error al detener para cambiar de cámara:", err);
-          });
-      }
-  };
-
-  const toggleFlash = () => {
-    const track = videoTrackRef.current;
-    if(track && 'applyConstraints' in track) {
-        const newFlashState = !isFlashOn;
-        track.applyConstraints({ advanced: [{ torch: newFlashState }] }).then(() => {
-            setIsFlashOn(newFlashState);
-        }).catch(e => console.log('error flash', e));
-    }
-  };
-
-  const handleZoom = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const track = videoTrackRef.current;
-      if(track && 'applyConstraints' in track) {
-          try {
-              track.applyConstraints({ advanced: [{ zoom: event.target.value }] });
-          } catch(error) {
-              console.error("Error al aplicar zoom:", error);
-          }
-      }
   };
 
   const handleConfirmation = (decision: boolean) => {
@@ -804,10 +701,15 @@ export default function Home() {
                 </div>
 
                 <div className="bg-starbucks-cream p-4 rounded-lg">
-                    <div className="scanner-container">
+                    <div className="scanner-container relative">
                         <div id="reader" ref={readerRef} style={{ display: selectedScannerMode === 'camara' ? 'block' : 'none' }}></div>
-                        <div id="laser-line" style={{ display: scannerActive && selectedScannerMode === 'camara' ? 'block' : 'none' }}></div>
+                        {scannerActive && selectedScannerMode === 'camara' && <div id="laser-line"></div>}
                         <input type="text" id="physical-scanner-input" ref={physicalScannerInputRef} className="hidden-input" autoComplete="off" />
+                        {selectedScannerMode === 'camara' && !scannerActive && (
+                            <div className="text-center p-8 border-2 border-dashed border-gray-300 rounded-lg">
+                                <p className="text-gray-500">La cámara está desactivada.</p>
+                            </div>
+                        )}
                     </div>
                     {lastScanned && (
                         <p className="mt-2 text-center text-xs bg-blue-100 border border-blue-400 text-blue-700 px-3 py-2 rounded relative">
@@ -817,19 +719,8 @@ export default function Home() {
                     <div id="scanner-controls" className="mt-4 flex flex-wrap gap-2 justify-center">
                         <button onClick={startScanner} disabled={scannerActive} className={`px-4 py-2 text-white font-semibold rounded-lg shadow-md transition-colors duration-200 text-sm ${scannerActive ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'}`}>Iniciar</button>
                         <button onClick={stopScanner} disabled={!scannerActive} className={`px-4 py-2 text-white font-semibold rounded-lg shadow-md transition-colors duration-200 text-sm ${!scannerActive ? 'bg-gray-400' : 'bg-red-600 hover:bg-red-700'}`}>Detener</button>
-                        {showChangeCamera && <button id="change-camera" onClick={changeCamera} className="px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md text-sm">Cambiar 📸</button>}
                     </div>
-                    {showAdvancedControls && selectedScannerMode === 'camara' && (
-                        <div id="camera-adv-controls" className="mt-4 p-2 bg-starbucks-cream rounded-lg space-y-2">
-                            {showFlashControl && <div id="flash-control" className="text-center">
-                                <button id="flash-btn" onClick={toggleFlash} className="w-full px-4 py-2 text-sm bg-gray-500 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md">{isFlashOn ? 'Apagar Flash 💡' : 'Encender Flash 🔦'}</button>
-                            </div>}
-                           {showZoomControl && <div id="zoom-control" className="text-center">
-                                <label htmlFor="zoom-slider" className="block mb-1 text-xs font-medium text-starbucks-dark">Zoom 🔎</label>
-                                <input type="range" id="zoom-slider" ref={zoomSliderRef} onChange={handleZoom} className="w-full" />
-                            </div>}
-                        </div>
-                    )}
+
                      <div id="physical-scanner-status" className="mt-4 text-center p-2 rounded-md bg-starbucks-accent text-white" style={{ display: scannerActive && selectedScannerMode === 'fisico' ? 'block' : 'none' }}>
                         Escáner físico listo.
                     </div>
