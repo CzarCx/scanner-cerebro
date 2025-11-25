@@ -211,12 +211,12 @@ export default function Home() {
     showAppMessage('Asociando códigos y consultando base de datos...', 'info');
   
     const newPersonalScansPromises = pendingScans.map(async (item) => {
-      let sku = item.sku;
-      let producto = item.producto;
-      let cantidad = item.cantidad;
-      let empresa = item.empresa;
+      let sku: string | null = '';
+      let producto: string | null = '';
+      let cantidad: number | null = 0;
+      let empresa: string | null = '';
   
-      if (!sku || !producto || !cantidad || !empresa) {
+      if (!item.sku || !item.producto || !item.cantidad || !item.empresa) {
           try {
             const { data, error } = await supabase
               .from('BASE DE DATOS ETIQUETAS IMPRESAS')
@@ -240,6 +240,11 @@ export default function Home() {
             console.error(`Error al buscar el código ${item.code}:`, e.message);
             showAppMessage(`Error al buscar ${item.code}: ${e.message}`, 'duplicate');
           }
+      } else {
+        sku = item.sku;
+        producto = item.producto;
+        cantidad = item.cantidad;
+        empresa = item.empresa;
       }
   
       return {
