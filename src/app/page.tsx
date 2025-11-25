@@ -100,6 +100,11 @@ export default function Home() {
   const MIN_SCAN_INTERVAL = 500;
 
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+
+  useEffect(() => {
     const checkDbConnection = async () => {
       const { error } = await supabase.from('BASE DE DATOS ETIQUETAS IMPRESAS').select('Código').limit(1);
       if (error) {
@@ -372,9 +377,6 @@ export default function Home() {
     }
   }, [zoom, isFlashOn, scannerActive, selectedScannerMode, isMobile, applyCameraConstraints]);
   
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!isMounted || !readerRef.current) return;
@@ -955,5 +957,3 @@ export default function Home() {
     </>
   );
 }
-
-    
