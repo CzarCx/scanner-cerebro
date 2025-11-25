@@ -3,7 +3,7 @@
 import {useEffect, useRef, useState, useCallback} from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
-import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 import { supabase } from '@/lib/supabaseClient';
 import { supabaseDB2 } from '@/lib/supabaseClient';
 import {
@@ -325,7 +325,7 @@ export default function Home() {
       }]
     }).catch(e => console.error("Failed to apply constraints", e));
   }, [zoom, isFlashOn]);
-
+  
   useEffect(() => {
     if (isMobile && scannerActive && selectedScannerMode === 'camara' && html5QrCodeRef.current?.isScanning) {
       const videoElement = document.getElementById('reader')?.querySelector('video');
@@ -338,7 +338,7 @@ export default function Home() {
       }
     }
   }, [zoom, isFlashOn, scannerActive, selectedScannerMode, isMobile, applyCameraConstraints]);
-
+  
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -747,7 +747,7 @@ export default function Home() {
 
                 <div className="bg-starbucks-cream p-4 rounded-lg">
                     <div className="scanner-container relative">
-                        <div id="reader" ref={readerRef} style={{ display: selectedScannerMode === 'camara' ? 'block' : 'none' }}></div>
+                        <div id="reader" ref={readerRef} style={{ display: selectedScannerMode === 'camara' && scannerActive ? 'block' : 'none' }}></div>
                         {scannerActive && selectedScannerMode === 'camara' && <div id="laser-line"></div>}
                         <input type="text" id="physical-scanner-input" ref={physicalScannerInputRef} className="hidden-input" autoComplete="off" />
                         {selectedScannerMode === 'camara' && !scannerActive && (
