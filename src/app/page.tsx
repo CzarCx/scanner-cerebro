@@ -47,6 +47,13 @@ type Encargado = {
   name: string;
 };
 
+type DecodedResult = {
+  result?: {
+      format?: {
+          formatName?: string;
+      };
+  };
+};
 
 // Helper function to check if a string is likely a name
 const isLikelyName = (text: string): boolean => {
@@ -59,7 +66,7 @@ const isLikelyName = (text: string): boolean => {
 export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
   const [message, setMessage] = useState({text: 'Esperando para escanear...', type: 'info' as 'info' | 'success' | 'duplicate'});
-  const [lastScanned, setLastScanned] = useState<string | null>(null);
+  const [lastScanned, setLastScanned] = useState<{code: string, decodedResult: DecodedResult} | null>(null);
   const [encargado, setEncargado] = useState('');
   const [encargadosList, setEncargadosList] = useState<Encargado[]>([]);
   const [scannedData, setScannedData] = useState<ScannedItem[]>([]);
@@ -295,64 +302,72 @@ export default function Home() {
       });
   };
 
-  const onScanSuccess = useCallback(async (decodedText: string, decodedResult: any) => {
-    setLastScanned(decodedText);
+  const onScanSuccess = useCallback((decodedText: string, decodedResult: DecodedResult) => {
+      if (!scannerActive) return;
+      if (Date.now() - lastScanTimeRef.current < MIN_SCAN_INTERVAL) return;
+      lastScanTimeRef.current = Date.now();
+      setLastScanned({ code: decodedText, decodedResult });
+  }, [scannerActive]);
 
-    if (!scannerActive || Date.now() - lastScanTimeRef.current < MIN_SCAN_INTERVAL) return;
-    lastScanTimeRef.current = Date.now();
+  useEffect(() => {
+    const processScan = async () => {
+        if (!lastScanned) return;
 
-    let finalCode = decodedText;
-    try {
-      const parsedJson = JSON.parse(decodedText);
-      if (parsedJson && parsedJson.id) finalCode = parsedJson.id;
-    } catch (e) {}
+        let finalCode = lastScanned.code;
+        try {
+            const parsedJson = JSON.parse(lastScanned.code);
+            if (parsedJson && parsedJson.id) finalCode = parsedJson.id;
+        } catch (e) {}
 
-    if (isLikelyName(finalCode)) {
-      if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
-      associateNameToScans(finalCode, scannedData); 
-      lastSuccessfullyScannedCodeRef.current = finalCode;
-      return;
-    }
+        if (isLikelyName(finalCode)) {
+            if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
+            associateNameToScans(finalCode, scannedData);
+            lastSuccessfullyScannedCodeRef.current = finalCode;
+            return;
+        }
 
-    if (finalCode === lastSuccessfullyScannedCodeRef.current) return;
-    
-    setLoading(true);
-    const { data, error } = await supabase
-        .from('BASE DE DATOS ETIQUETAS IMPRESAS')
-        .select('Código, SKU, Cantidad, Producto, EMPRESA, Venta')
-        .eq('Código', finalCode)
-        .single();
-    setLoading(false);
+        if (finalCode === lastSuccessfullyScannedCodeRef.current) return;
 
-    if (error && error.code !== 'PGRST116') {
-        showAppMessage(`Error de base de datos: ${error.message}`, 'duplicate');
-        return;
-    }
+        setLoading(true);
+        const { data, error } = await supabase
+            .from('BASE DE DATOS ETIQUETAS IMPRESAS')
+            .select('Código, SKU, Cantidad, Producto, EMPRESA, Venta')
+            .eq('Código', finalCode)
+            .single();
+        setLoading(false);
 
-    if (!data) {
-        showAppMessage(`Error: Código ${finalCode} no encontrado en la base de datos.`, 'duplicate');
-        return;
-    }
+        if (error && error.code !== 'PGRST116') {
+            showAppMessage(`Error de base de datos: ${error.message}`, 'duplicate');
+            return;
+        }
 
-    const { SKU, Cantidad, Producto, EMPRESA, Venta } = data;
+        if (!data) {
+            showAppMessage(`Error: Código ${finalCode} no encontrado en la base de datos.`, 'duplicate');
+            return;
+        }
 
-    const isBarcode = decodedResult.result?.format?.formatName !== 'QR_CODE';
-    let confirmed = true;
+        const { SKU, Cantidad, Producto, EMPRESA, Venta } = data;
 
-    if (isBarcode && finalCode.startsWith('4') && finalCode.length === 11) {
-        confirmed = true;
-    } else {
-        const title = isBarcode ? 'Advertencia' : 'Confirmar Código';
-        const message = isBarcode ? 'Este no es un código MEL, ¿desea agregar?' : 'Se ha detectado el siguiente código. ¿Desea agregarlo al registro?';
-        confirmed = await showConfirmationDialog(title, message, finalCode);
-    }
+        const isBarcode = lastScanned.decodedResult.result?.format?.formatName !== 'QR_CODE';
+        let confirmed = true;
 
-    if (confirmed) {
-      addCodeAndUpdateCounters(finalCode, { sku: SKU, cantidad: Cantidad, producto: Producto, empresa: EMPRESA, venta: Venta });
-    } else {
-      showAppMessage('Escaneo cancelado.', 'info');
-    }
-  }, [scannerActive, addCodeAndUpdateCounters, associateNameToScans, scannedData]);
+        if (isBarcode && finalCode.startsWith('4') && finalCode.length === 11) {
+            confirmed = true;
+        } else {
+            const title = isBarcode ? 'Advertencia' : 'Confirmar Código';
+            const message = isBarcode ? 'Este no es un código MEL, ¿desea agregar?' : 'Se ha detectado el siguiente código. ¿Desea agregarlo al registro?';
+            confirmed = await showConfirmationDialog(title, message, finalCode);
+        }
+
+        if (confirmed) {
+            addCodeAndUpdateCounters(finalCode, { sku: SKU, cantidad: Cantidad, producto: Producto, empresa: EMPRESA, venta: Venta });
+        } else {
+            showAppMessage('Escaneo cancelado.', 'info');
+        }
+    };
+    processScan();
+  }, [lastScanned, addCodeAndUpdateCounters, associateNameToScans, scannedData]);
+
 
   const applyCameraConstraints = useCallback((track: MediaStreamTrack) => {
     if (!isMobile) return;
